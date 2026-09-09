@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# The tracker's own data, if anybody points TASKTRACKER_HOME at the checkout
+# while developing. The real store lives under ~/.claude/tasktracker and is
+# never inside this tree, but a stray tasks.db committed once is a stray
+# tasks.db in the history for good.
+*.db
+*.db-wal
+*.db-shm
+
+# Editors
+.idea/
+.vscode/
+*.swp

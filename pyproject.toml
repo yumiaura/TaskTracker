@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tasktracker"
+version = "0.1.0"
+description = "A task board Claude fills in for itself, served as a local web panel."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Olya Pimenova" }]
+keywords = ["claude", "mcp", "tasks", "kanban"]
+
+# Three runtime dependencies and no more.
+#
+# `mcp` is the official SDK the stdio server speaks through; fastapi and
+# uvicorn serve the panel and its REST API. Everything else this package needs
+# - the store, the hook, the CLI - is standard library, because a plugin that
+# has to be pip-installed into the right environment before Claude can write a
+# single task is a plugin that gets uninstalled.
+dependencies = [
+  "mcp>=1.2",
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.5"]
+
+[project.scripts]
+tasktracker = "tasktracker.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# The web panel is shipped inside the package, so an installed wheel serves the
+# same files a checkout does and there is nothing to point a path at.
+[tool.setuptools.package-data]
+tasktracker = [
+  "www/*.html",
+  "www/*.svg",
+  "www/css/*",
+  "www/js/*",
+  "www/fonts/*",
+  "www/vendor/*",
+  "www/vendor/webfonts/*",
+  "www/views/*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
