@@ -54,6 +54,23 @@ server: FastMCP = FastMCP("tasktracker", instructions=INSTRUCTIONS)
 # hand rather than against the home directory.
 PROJECT_ENV = "TASKTRACKER_PROJECT"
 
+
+def default_root() -> str:
+    """The project directory for a tool that named none.
+
+    The variable is only believed when it names a directory that exists. The
+    plugin sets it from `${CLAUDE_PROJECT_DIR}`, and a client that does not
+    expand that hands this process the literal string - which would otherwise
+    become a project named `${CLAUDE_PROJECT_DIR}`, sitting at the top of the
+    panel with everything filed under it. The working directory is what the
+    client started this server in, and it is right whenever the variable is
+    not.
+    """
+    named = os.environ.get(PROJECT_ENV, "").strip()
+    if named and os.path.isdir(named):
+        return named
+    return os.getcwd()
+
 # What a task looks like on the way back to Claude.
 #
 # Eleven columns go into the table and five come out here. The rest - the float
@@ -84,7 +101,7 @@ def resolve(conn, wanted: str) -> dict[str, Any]:
     """
     text = (wanted or "").strip()
     if not text:
-        return store.ensure_project(conn, os.environ.get(PROJECT_ENV) or os.getcwd())
+        return store.ensure_project(conn, default_root())
     if "/" in text or text.isdigit():
         try:
             return store.find_project(conn, text)

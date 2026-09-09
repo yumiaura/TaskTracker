@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""The PostToolUse hook: Claude Code's todo list, mirrored onto the board.
+
+This is what makes the board fill itself. Claude already keeps a todo list
+while it works and that list dies with the session; every time it writes one,
+this runs and brings the session's cards on the board in line with it.
+
+Two rules govern everything here:
+
+  * It must never fail loudly. A hook that exits non-zero, or writes to stdout,
+    is a hook that interrupts the work it was supposed to be recording. Every
+    path out of `main` is exit 0, and the only thing ever written is a line on
+    stderr when something unexpected happened.
+
+  * It must be cheap. It runs on every TodoWrite, so it imports the standard
+    library and the store and nothing else - no fastapi, no mcp, no web
+    framework for one row.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from typing import Any
+
+from . import store
+
+# The tool whose writes are worth mirroring. The hook is registered with this
+# matcher too, so in normal operation nothing else reaches here - the check is
+# for a hook wired up by hand, or a matcher that grows later.
+TOOL = "TodoWrite"
+
+
+def todos_from(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """The todo list out of a hook payload, whichever field carries it.
+
+    `tool_input.todos` is where TodoWrite's arguments are, and it is the field
+    this reads first. `tool_response` is checked as a fallback because it is the
+    tool's own account of what it ended up with, and a version that starts
+    reporting the list only there would otherwise mirror nothing at all - a
+    silent stop, on the one path with no output to notice it by.
+
+    None means "this payload has no todo list", which is not the same as an
+    empty list: an empty list is Claude clearing its plan, and clearing the plan
+    withdraws the queued cards that went with it.
+    """
+    for field in ("tool_input", "tool_response"):
+        section = payload.get(field)
+        if isinstance(section, dict):
+            for name in ("todos", "newTodos"):
+                todos = section.get(name)
+                if isinstance(todos, list):
+                    return todos
+    return None
+
+
+def mirror(payload: dict[str, Any]) -> dict[str, int] | None:
+    """Bring this session's cards in line with the list in the payload."""
+    if payload.get("tool_name") != TOOL:
+        return None
+    todos = todos_from(payload)
+    if todos is None:
+        return None
+
+    # The session is the identity of the mirror. Without one, two sessions in
+    # one repository would reconcile against each other's cards and each would
+    # withdraw what the other queued - so a payload with no session id is one
+    # this hook declines to act on rather than one it guesses at.
+    session_id = str(payload.get("session_id") or "").strip()
+    if not session_id:
+        return None
+
+    with store.database() as conn:
+        project = store.ensure_project(conn, payload.get("cwd") or ".")
+        return store.mirror_todos(conn, project["id"], session_id, todos)
+
+
+def main(stdin=None) -> int:
+    """Read one hook payload and mirror it. Always exit 0.
+
+    Every failure is swallowed here, and that is the design rather than
+    laziness. This runs inside somebody's editing session: a traceback on a
+    locked database, a board directory that cannot be created, a payload in a
+    shape a later version invented - none of them is a reason to put an error in
+    front of the work. The board is a record of the work, not a participant in
+    it.
+
+    The one thing that IS reported is the line on stderr, which Claude Code
+    shows when it is looking. It names the failure without ever being able to
+    stop anything.
+    """
+    source = stdin if stdin is not None else sys.stdin
+    try:
+        raw = source.read()
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        print(f"tasktracker: could not read the hook payload: {exc}", file=sys.stderr)
+        return 0
+
+    try:
+        payload = json.loads(raw or "{}")
+    except ValueError:
+        # Not JSON. Nothing to mirror and nothing worth saying: a hook fed
+        # something else is a wiring mistake, and it will be equally silent on
+        # every subsequent call, so one line per TodoWrite would be noise.
+        return 0
+
+    if not isinstance(payload, dict):
+        return 0
+
+    try:
+        mirror(payload)
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        print(f"tasktracker: the todo mirror failed: {exc}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
