@@ -8,6 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The web panel: a projects table, a board of three columns per project with
+  drag and drop between them, the same cards as a sortable table behind a view
+  toggle, and a settings screen for how long a finished task stays drawn. Vue 2
+  with no build step, the palette and control metrics taken from
+  `wachawo/lmgateway`, every asset served from this host and a light and dark
+  half of the palette (`feat/webui`).
 - The web server: a FastAPI application serving nine REST endpoints under
   `/api` and the panel's static files at `/`, plus the `tasktracker` console
   script (`serve`, `where`). Every failure leaves it in one envelope,

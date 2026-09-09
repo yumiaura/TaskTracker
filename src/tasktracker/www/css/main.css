@@ -1,0 +1,699 @@
+/* TaskTracker - palette and component overrides.
+
+   The palette, the control metrics and the top bar are lmgateway's, because
+   this panel is meant to be read as part of the same family of tools and a
+   second house style is a second set of numbers to keep in step. What is new
+   here is everything below "Board": three columns, the cards in them, and the
+   states a card takes while it is being dragged. */
+
+/* Montserrat, served from this host. The panel is a loopback bind on a
+   workstation that is not always online, so a face fetched from Google would be
+   the one asset that never arrives.
+
+   Four faces: regular and extra-bold, upright and italic. Declaring extra-bold
+   as `bold` is deliberate - the app asks for 700 and 900 in places and CSS
+   resolves each to the nearest declared weight, so every heavier-than-normal
+   request lands on the one heavy face we ship instead of a synthesised smear. */
+@font-face {
+  font-family: Montserrat;
+  src: url(/fonts/Montserrat-Regular.woff2) format("woff2");
+  font-style: normal;
+  font-weight: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: Montserrat;
+  src: url(/fonts/Montserrat-Italic.woff2) format("woff2");
+  font-style: italic;
+  font-weight: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: Montserrat;
+  src: url(/fonts/Montserrat-ExtraBold.woff2) format("woff2");
+  font-style: normal;
+  font-weight: bold;
+  font-display: swap;
+}
+@font-face {
+  font-family: Montserrat;
+  src: url(/fonts/Montserrat-ExtraBoldItalic.woff2) format("woff2");
+  font-style: italic;
+  font-weight: bold;
+  font-display: swap;
+}
+
+/* The palette, in two halves.
+
+   Every colour this panel paints is named here and nowhere else. The reason is
+   the dark half: a rule that reaches for a literal is a rule that stays light
+   when the operator switches, and that fails as one panel of grey text on a
+   grey card nobody notices until they have to read it late at night.
+
+   The light half is declared on `:root` alone, so a document with no attribute
+   renders as it did before either theme existed. The dark half is declared on
+   `:root[data-theme="dark"]`, which outranks it on specificity rather than on
+   source order. js/app.js puts that attribute on the document element as it
+   loads - before the app mounts, so no load paints light and flips. */
+:root {
+  /* The widest the content goes. Past it the window gets margins rather than
+     wider cards. */
+  --tt-page-width: 1600px;
+  /* How far off the left edge everything starts - the brand in the bar and the
+     first card of every screen under it. ONE number for both, because they are
+     the same line. */
+  --tt-edge: 10px;
+
+  --tt-primary:       #3b89ca;
+  /* The emphatic step of the primary - a hovered link, the page you are on.
+     Darker than the primary on this half and LIGHTER on the dark half: what it
+     has to mean on both is "further from the background". */
+  --tt-primary-dark:  #3376ae;
+  --tt-primary-light: #aecae0;
+  --tt-primary-pale:  #bbcfe0;
+  --tt-bg:            #f5f5f5;
+  --tt-card:          #ffffff;
+  --tt-text:          #58666e;
+  --tt-text-strong:   #4a5056;
+  /* A control that is present but switched off. A colour rather than an
+     opacity: opacity on a row makes a stacking context, and a dimmed glyph
+     inside a dimmed row composites twice and lands under the 3:1 a non-text
+     control needs. */
+  --tt-muted:         #7d8a91;
+  --tt-border:        #e5e7eb;
+
+  --tt-success:       #009259;
+  --tt-success-light: #89d69a;
+  --tt-success-deep:  #007544;
+  --tt-danger:        #9c1753;
+  --tt-danger-light:  #f5bad4;
+  --tt-danger-deep:   #7d1242;
+  --tt-warning:       #fad974;
+
+  /* The ink on a saturated fill - a primary button, a toast, a table caption.
+     One variable for all of them because the accents move together: dark
+     colours carrying white here, bright colours carrying near-black on the dark
+     half. The amber is the exception and has its own, because a warning that
+     changes colour between themes is one you have to learn twice. */
+  --tt-on-accent:     #ffffff;
+  --tt-on-warning:    #4a5056;
+
+  --tt-field-border:  #ced4da;
+  --tt-shadow:        rgba(0, 0, 0, .2);
+
+  /* The top bar. Its own surface rather than `--tt-primary`, because a band of
+     saturated blue is right on a light page and is the one thing that glares on
+     a dark one. The two washes are alphas so they work over either. */
+  --tt-header-bg:     var(--tt-primary);
+  --tt-header-ink:    #ffffff;
+  --tt-header-sunken: rgba(0, 0, 0, .14);
+  --tt-header-raised: rgba(255, 255, 255, .12);
+
+  /* Table row states, as alphas painted OVER whatever colour a row carries.
+     Black on the light half and white on the dark one: a black wash on a dark
+     row is invisible, and the hovered row would stop being tellable. */
+  --tt-row-hover:     rgba(0, 0, 0, .09);
+  --tt-row-active:    rgba(0, 0, 0, .17);
+
+  /* The three columns, as one colour each.
+     Queued is the house grey - work that is only waiting is not news. In
+     progress is the primary, because it is the one column that answers "what is
+     happening right now". Done is green. Each is used for the column's heading
+     rule and for the stripe down the left edge of its cards, which is what lets
+     the table view report a status without a column of coloured words. */
+  --tt-col-queued:      #7d8a91;
+  --tt-col-progress:    #3b89ca;
+  --tt-col-done:        #009259;
+
+  /* Where a card would land. Deliberately the primary rather than a neutral:
+     the line appears only while something is being dragged, and it has to be
+     findable in one glance among cards it is the same width as. */
+  --tt-drop-line:     #3b89ca;
+  --tt-drop-wash:     rgba(59, 137, 202, .08);
+
+  /* The four message bars. Each is a pale wash of its family with the text in
+     the deep end of the same family. */
+  --tt-alert-error-bg:     #fbe4ed;
+  --tt-alert-warning-bg:   #fdf3d6;
+  --tt-alert-warning-ink:  #6b4e00;
+  --tt-alert-info-bg:      #e4eff9;
+  --tt-alert-info-ink:     #235d8f;
+  --tt-alert-success-bg:   #dff2e8;
+  --tt-alert-success-ink:  #00663f;
+}
+
+/* The dark half.
+
+   Every variable above is answered here. A palette with a hole in it is not a
+   theme with one odd colour - it is one surface still painting light text on a
+   light background, and the hole is always in the panel whoever reports it
+   opened first.
+
+   The accents are BRIGHTER here rather than darker, with correspondingly dark
+   ink on them. The pale washes invert with them, so a pill is a dark wash with
+   bright text instead of a pale wash with dark text. */
+:root[data-theme="dark"] {
+  /* Native chrome - scrollbars, the caret, a date input's popup - is drawn by
+     the browser and not by this file. Told which way the page goes it draws
+     them dark; left alone it draws a white scrollbar down a dark screen. */
+  color-scheme: dark;
+
+  --tt-primary:       #5ba3dd;
+  --tt-primary-dark:  #8fc3ef;
+  --tt-primary-light: #1b3242;
+  --tt-primary-pale:  #223b4c;
+  --tt-bg:            #14181c;
+  --tt-card:          #1d2328;
+  --tt-text:          #b6c0c7;
+  --tt-text-strong:   #e8edf1;
+  --tt-muted:         #8794a0;
+  --tt-border:        #2f383f;
+
+  --tt-success:       #35b481;
+  --tt-success-light: #14382a;
+  --tt-success-deep:  #4cc294;
+  --tt-danger:        #e8709d;
+  --tt-danger-light:  #3d1a27;
+  --tt-danger-deep:   #f59ec0;
+  /* The one accent that does not invert. Amber means the same thing on both
+     halves and there is no darker amber that still reads as amber. */
+  --tt-warning:       #fad974;
+
+  --tt-on-accent:     #10161b;
+  --tt-on-warning:    #4a5056;
+
+  --tt-field-border:  #3a444c;
+  /* Deeper than the light half's. A drop shadow separates by darkening what is
+     behind it, and there is much less headroom to darken on a dark page. */
+  --tt-shadow:        rgba(0, 0, 0, .6);
+
+  --tt-header-bg:     #182028;
+  --tt-header-ink:    #dfe6ec;
+  --tt-header-sunken: rgba(0, 0, 0, .4);
+  --tt-header-raised: rgba(255, 255, 255, .08);
+
+  --tt-row-hover:     rgba(255, 255, 255, .07);
+  --tt-row-active:    rgba(255, 255, 255, .13);
+
+  --tt-col-queued:      #8794a0;
+  --tt-col-progress:    #5ba3dd;
+  --tt-col-done:        #35b481;
+
+  --tt-drop-line:     #5ba3dd;
+  --tt-drop-wash:     rgba(91, 163, 221, .12);
+
+  --tt-alert-error-bg:     #35161f;
+  --tt-alert-warning-bg:   #33290f;
+  --tt-alert-warning-ink:  #f2cf85;
+  --tt-alert-info-bg:      #16273a;
+  --tt-alert-info-ink:     #a8cdec;
+  --tt-alert-success-bg:   #123024;
+  --tt-alert-success-ink:  #7fd6ab;
+
+  /* What Bootstrap paints that this file does not. Every dialog, input and
+     close glyph here is Bootstrap's, and Bootstrap reads its own attribute -
+     app.js sets both on the document element for exactly that reason. Pointing
+     its surface variables at ours is what stops the result from being two dark
+     themes side by side.
+
+     `--bs-emphasis-color-rgb` is deliberately NOT redirected: it is what the
+     striped rows are an alpha of, and Bootstrap's white is what a stripe on a
+     dark row should be. */
+  --bs-body-bg:        var(--tt-card);
+  --bs-body-color:     var(--tt-text);
+  --bs-border-color:   var(--tt-border);
+  --bs-emphasis-color: var(--tt-text-strong);
+}
+
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: Montserrat, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-size: 12px;
+  background: var(--tt-bg);
+  color: var(--tt-text);
+  line-height: 1.4;
+}
+/* Form controls do not inherit the page face - every browser draws them in its
+   own UI font unless told otherwise, which would leave the dialogs in a
+   different typeface from the board behind them. */
+input, select, textarea, button { font-family: inherit; }
+
+#app { min-height: 100vh; display: flex; flex-direction: column; }
+
+a { color: var(--tt-primary); text-decoration: none; }
+a:hover { color: var(--tt-primary-dark); text-decoration: underline; }
+
+h1 { font-size: 22px; font-weight: 900; }
+h2 { font-size: 18px; font-weight: 900; }
+h3 { font-size: 15px; font-weight: 900; }
+h5 { font-size: 13px; font-weight: 900; }
+
+/* Utilities */
+.bg-blue        { background: var(--tt-primary) !important; color: var(--tt-on-accent) !important; }
+.text-strong    { color: var(--tt-text-strong); }
+.text-muted-soft{ color: var(--tt-muted); }
+.cursor-pointer { cursor: pointer; }
+
+/* Bootstrap overrides */
+
+/* The label as well as the fill. Bootstrap's `.btn-primary` hardcodes white
+   text, which is right on the light half's #3b89ca and 2.7:1 on the dark half's
+   brighter blue. Set through Bootstrap's own state variables rather than with
+   `color: … !important`, so the disabled and active renderings follow. */
+.btn-primary {
+  border-color: var(--tt-primary) !important;
+  background-color: var(--tt-primary) !important;
+  --bs-btn-color:          var(--tt-on-accent);
+  --bs-btn-hover-color:    var(--tt-on-accent);
+  --bs-btn-active-color:   var(--tt-on-accent);
+  --bs-btn-disabled-color: var(--tt-on-accent);
+}
+.btn-primary:hover:not([disabled]) {
+  background-color: var(--tt-primary-dark) !important;
+  border-color: var(--tt-primary-dark) !important;
+}
+textarea:focus, input.form-control:focus, .form-control:focus, .form-select:focus {
+  box-shadow: none;
+  border-color: var(--tt-primary);
+}
+.disabled, :disabled { opacity: .5 !important; pointer-events: none !important; }
+
+/* Control metrics.
+
+   Bootstrap sizes every control off 1rem - 16px - while this page is set in
+   12px, so a control comes out half again as tall as the text beside it. One
+   height for everything instead, 24px, which is also the smallest target WCAG
+   accepts. */
+.form-control, .input-group-text, .btn { font-size: 12px; }
+.form-control-sm, .input-group-sm .form-control, .input-group-sm .input-group-text {
+  min-height: 24px;
+  line-height: 1.4;
+}
+.form-select-sm, .input-group-sm > .form-select {
+  min-height: 24px;
+  height: 24px;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 2px 22px 2px 6px;
+  background-position: right 6px center;
+  background-size: 10px 8px;
+}
+.btn-sm { padding: 2px 6px; min-height: 24px; font-size: 12px; line-height: 1.4; }
+
+/* Top bar */
+
+/* How tall the bar is, declared once because two things need it: the bar sets
+   it as a floor, and any dialog that opens below it reads it back. 28px is the
+   brand cell - 16px of uppercase on `line-height: 1` inside 6px of padding -
+   which is the tallest thing in the row. */
+:root { --tt-header-height: 28px; }
+
+.tt-header { background: var(--tt-header-bg); color: var(--tt-header-ink); line-height: 1; }
+/* The band runs the full width of the window; the tabs inside it stop where the
+   page does. Constraining the band would leave a coloured stripe down the
+   middle of the screen; leaving the tabs unconstrained would put PROJECTS at
+   the far left edge with the first card of the screen it opens well to its
+   right, and the two would stop reading as one thing. */
+.tt-header > ul {
+  max-width: var(--tt-page-width);
+  margin: 0 auto;
+  padding: 0 var(--tt-edge);
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  min-height: var(--tt-header-height);
+}
+.tt-header a, .tt-header a:hover { color: var(--tt-header-ink); text-decoration: none; }
+.tt-header > ul > li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.tt-header > ul > li.navbar-brand {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  margin: 0;
+  background: var(--tt-header-sunken);
+}
+.tt-header > ul > li.nav-item { padding: 0 8px; text-align: center; }
+.tt-header > ul > li.nav-item a { display: inline-block; line-height: 1; }
+/* A hovered tab lightens rather than grows. Changing the font size reflows the
+   row and every tab to its right moves under the pointer. */
+.tt-header > ul > li.nav-item:hover { background: var(--tt-header-raised); }
+.tt-header > ul > li.active { font-weight: 700; background: var(--tt-header-sunken); }
+.tt-header > ul > li.nav-theme { padding: 0 4px; }
+.tt-header > ul > li.nav-theme:hover { background: none; }
+.tt-header .tt-theme-toggle {
+  background: none;
+  border: 0;
+  color: var(--tt-header-ink);
+  padding: 4px 6px;
+  border-radius: 3px;
+  line-height: 1;
+}
+/* Lightens on hover, the way a tab does. `:focus` too - the ring is suppressed
+   below, so without this a keyboard user gets no sign of where they are. */
+.tt-header .tt-theme-toggle:hover,
+.tt-header .tt-theme-toggle:focus {
+  background: var(--tt-header-raised);
+  outline: none;
+}
+/* What the bar says about the board as a whole: how much is queued everywhere.
+   A link rather than a label, because the number is only useful if you can get
+   to what it counts. */
+.tt-header .tt-total {
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--tt-header-sunken);
+  font-weight: 700;
+}
+
+/* Page container */
+.tt-page {
+  max-width: var(--tt-page-width);
+  margin: 0 auto;
+  padding: 8px var(--tt-edge) 24px;
+  width: 100%;
+}
+
+/* The row above every screen: what you are looking at on the left, what you can
+   do to it on the right. One rule, so the two screens cannot drift into
+   different spacings. */
+.tt-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.tt-bar .tt-bar-title { font-size: 15px; font-weight: 900; color: var(--tt-text-strong); margin: 0; }
+.tt-bar .tt-bar-gap { margin-left: auto; }
+
+/* Cards */
+.tt-card {
+  background: var(--tt-card);
+  border: 1px solid var(--tt-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
+/* Tables */
+.table { font-size: 12px; margin-bottom: .25rem; }
+/* Bluish header band. Bootstrap leaves thead the same white as the body, which
+   on a page of white cards leaves nothing to say where the data starts. */
+.table thead td, .table thead th {
+  background: var(--tt-primary-pale);
+  color: var(--tt-text-strong);
+  font-weight: 700;
+}
+/* Bootstrap's own padding is .5rem - nearly 7px at this font size. */
+.table > :not(caption) > * > * { padding: 4px 6px; }
+/* Bootstrap paints this variable as an inset shadow OVER the row's own
+   background, which is how a hover can be an alpha and still work on a striped
+   row. */
+.table tbody tr:hover > * { --bs-table-bg-state: var(--tt-row-hover); }
+.table tbody tr.table-active > * { --bs-table-bg-state: var(--tt-row-active); }
+/* Fixed layout is what makes an ellipsis possible at all: with `auto`, a table
+   sizes its columns from their content and the long cell simply widens the
+   table instead of being cut. */
+.table-fixed { table-layout: fixed; width: 100%; }
+.td-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1px; }
+.td-actions  { white-space: nowrap; text-align: right; }
+
+/* Row actions: glyphs, not buttons. A row of buttons would be four bordered
+   boxes per row on a screen that is mostly rows. The hit area is the padding
+   around the glyph. */
+.td-actions i {
+  cursor: pointer;
+  color: var(--tt-muted);
+  margin-right: 8px;
+  padding: 2px;
+}
+.td-actions i:last-child { margin-right: 0; }
+.td-actions i:hover { color: var(--tt-primary-dark); transform: scale(1.2); }
+.td-actions i.text-danger { color: var(--tt-danger) !important; }
+.td-actions i.text-danger:hover { color: var(--tt-danger-deep) !important; }
+
+/* A whole row that opens something. The pointer says so and the hover says so;
+   the row also carries a real link in its first cell, so this is an
+   enlargement of a target rather than the only way in - a div nobody can tab
+   to would make the projects screen unreachable from the keyboard. */
+.tt-row-open { cursor: pointer; }
+
+/* Board */
+
+/* Three columns, equal width, side by side until the window is too narrow to
+   read three of anything - at which point they stack and stay in the order the
+   board is read in.
+
+   `align-items: start` so a column with two cards is two cards tall rather than
+   stretched to match the tallest one: a tall empty box below a short column
+   reads as a drop target that is not there. */
+.tt-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .tt-board { grid-template-columns: minmax(0, 1fr); }
+}
+
+.tt-column {
+  background: var(--tt-card);
+  border: 1px solid var(--tt-border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+.tt-column-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--tt-text-strong);
+  /* The column's own colour, as a rule under its name rather than as a fill
+     behind it. A saturated band per column would put three coloured stripes
+     across a screen whose actual content is the cards. */
+  border-bottom: 2px solid var(--tt-col-queued);
+}
+.tt-column-progress .tt-column-head { border-bottom-color: var(--tt-col-progress); }
+.tt-column-done     .tt-column-head { border-bottom-color: var(--tt-col-done); }
+.tt-column-count {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--tt-muted);
+}
+/* The cards, and the space a drop can land in. The padding is on this element
+   rather than on the column so that an empty column still has a target with
+   height - a drop zone that collapses to nothing is one you cannot hit. */
+.tt-column-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 60px;
+}
+.tt-column-body.tt-over { background: var(--tt-drop-wash); }
+.tt-column-empty {
+  color: var(--tt-muted);
+  text-align: center;
+  padding: 12px 6px;
+  font-style: italic;
+}
+
+.tt-task {
+  position: relative;
+  background: var(--tt-card);
+  border: 1px solid var(--tt-border);
+  border-left: 3px solid var(--tt-col-queued);
+  border-radius: 3px;
+  padding: 6px 8px 6px 9px;
+  cursor: grab;
+}
+.tt-task:hover { border-color: var(--tt-primary-light); }
+.tt-column-progress .tt-task { border-left-color: var(--tt-col-progress); }
+.tt-column-done     .tt-task { border-left-color: var(--tt-col-done); }
+/* The card under the pointer while it is being carried. Not `display: none` -
+   removing it would reflow the column out from under the drag and the browser
+   would drop the pointer's own drag image. */
+.tt-task.tt-dragging { opacity: .4; }
+.tt-task-title { color: var(--tt-text-strong); overflow-wrap: anywhere; }
+.tt-task-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--tt-muted);
+  font-size: 11px;
+}
+.tt-task-actions { margin-left: auto; white-space: nowrap; }
+.tt-task-actions i {
+  cursor: pointer;
+  padding: 2px;
+  margin-left: 4px;
+  color: var(--tt-muted);
+}
+.tt-task-actions i:hover { color: var(--tt-primary-dark); }
+.tt-task-actions i.text-danger:hover { color: var(--tt-danger-deep) !important; }
+/* A card with more to it than its title. A glyph rather than the text, because
+   the detail is a paragraph and the board is a column of one-line cards. */
+.tt-task-detail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tt-text);
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--tt-border);
+}
+
+/* Where the card will land: a line between two cards, not a gap opened between
+   them. Opening a real gap reflows the column on every pointer move, and each
+   reflow changes which card the pointer is over - the line flickers between two
+   positions and the drop lands in neither. */
+.tt-drop-line {
+  height: 2px;
+  background: var(--tt-drop-line);
+  border-radius: 2px;
+  margin: -4px 0;
+}
+
+/* Where a card came from, in one word. `todo` is the mirror of Claude's own
+   list, `mcp` is Claude filing something deliberately, `manual` is somebody
+   typing - and manual prints nothing at all, because the unremarkable case
+   does not need a badge on every card. */
+.tt-source {
+  font-size: 10px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: var(--tt-primary-light);
+  color: var(--tt-primary-dark);
+}
+.tt-source-mcp { background: var(--tt-success-light); color: var(--tt-success-deep); }
+
+/* Status, as a word, for the table view - where there are no columns to say it
+   and colour alone would be the only carrier. */
+.pill {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pill-queued      { background: var(--tt-border);        color: var(--tt-text); }
+.pill-in_progress { background: var(--tt-primary-light); color: var(--tt-primary-dark); }
+.pill-done        { background: var(--tt-success-light); color: var(--tt-success-deep); }
+
+/* Toasts */
+.tt-toaster {
+  position: fixed;
+  top: 36px;
+  right: 12px;
+  z-index: 1080;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 380px;
+}
+.tt-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: var(--tt-on-accent);
+  box-shadow: 0 2px 6px var(--tt-shadow);
+  cursor: pointer;
+}
+.tt-toast-msg { flex: 1; overflow-wrap: anywhere; }
+.tt-toast-danger  { background: var(--tt-danger); }
+/* The amber toast keeps a dark label on both halves: the amber itself does not
+   invert, so its ink must not either. */
+.tt-toast-warning { background: var(--tt-warning); color: var(--tt-on-warning); }
+.tt-toast-success { background: var(--tt-success); }
+.tt-toast-info    { background: var(--tt-primary); }
+
+/* The message bars above a screen's content. A pale wash of each family with
+   the text in the deep end of the same one, so the bar is legible at 12px
+   rather than merely coloured. */
+.tt-alerts { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.tt-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+}
+.tt-alert-msg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tt-alert-error   { background: var(--tt-alert-error-bg);   color: var(--tt-danger-deep); }
+.tt-alert-warning { background: var(--tt-alert-warning-bg); color: var(--tt-alert-warning-ink); }
+.tt-alert-info    { background: var(--tt-alert-info-bg);    color: var(--tt-alert-info-ink); }
+.tt-alert-success { background: var(--tt-alert-success-bg); color: var(--tt-alert-success-ink); }
+.tt-alert .btn-close { --bs-btn-close-opacity: .5; font-size: 10px; }
+
+/* Modal */
+.modal-header.bg-blue .modal-title { font-weight: 700; font-size: 14px; margin: 0; }
+.modal-header > [data-bs-dismiss="modal"] { margin-left: auto; }
+/* Every dialog opens UNDER the bar rather than over it. The bar is where the
+   operator's eye already is and covering it with a sheet that dims it is a
+   moment of not knowing which window moved. */
+.modal { padding-top: var(--tt-header-height); }
+.modal .modal-dialog { margin-top: 8px; }
+
+/* A settings row: the label column sized once, so the controls share a left
+   edge whatever the longest word turns out to be.
+
+   `justify-content: start` because neither track is flexible - without it the
+   free space in a full-width card is handed to the second track's position
+   rather than to its width, and the control ends up alone at the far right of
+   the screen from the label naming it.
+
+   Nothing that spans both columns goes in here. A spanning item contributes to
+   the sizing of every track it crosses, so one paragraph of explanation under a
+   row makes `max-content` the width of that paragraph and pushes the control
+   off the edge. The notes are siblings of the grid, not cells in it. */
+.tt-settings-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 320px);
+  justify-content: start;
+  gap: 8px 12px;
+  align-items: center;
+}
+.tt-settings-grid > label { margin: 0; }
+.tt-settings-note { color: var(--tt-muted); }
+
+/* A path: long, unbreakable, and cut at the end if it has to be cut.
+
+   Not the `direction: rtl` trick that moves the ellipsis to the front. It does
+   keep the filename visible, but bidi reordering also walks the leading slash
+   round to the other end, so `/home/…/tasks.db` renders as `…/tasks.db/` - a
+   path that is not the path, on the one line of this screen whose whole job is
+   to say exactly which file is being read. The head of the path is the part
+   worth keeping anyway: the name at the end of this one is always tasks.db.
+
+   The full string is on the title attribute either way. */
+.tt-path {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* The strip a screen shows while a request is out. Reserved space rather than a
+   spinner over the content: the board polls, and something that covered it
+   every few seconds would make the cards unreadable. */
+.tt-wait { height: 2px; background: var(--tt-primary); opacity: .5; border-radius: 2px; }
