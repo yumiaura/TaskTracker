@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <title>TaskTracker</title>
+
+  <!-- Every asset is served from this host - the libraries under /vendor, the
+       four Montserrat faces css/main.css asks for under /fonts. The panel is a
+       loopback bind on a workstation that is not always online, and a CDN
+       <link> would be a UI that renders unstyled exactly when the network is
+       the thing that is broken.
+
+       Nothing is listed that no screen uses. There is no build step, so every
+       tag here is a file the panel fetches on load. -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/vendor/bootstrap.min.css" />
+  <link rel="stylesheet" href="/vendor/fontawesome.min.css" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="/vendor/bootstrap.bundle.min.js"></script>
+  <script src="/vendor/vue.min.js"></script>
+  <script src="/vendor/vue-router.min.js"></script>
+  <script src="/vendor/vuex.min.js"></script>
+  <script src="/vendor/httpVueLoader.min.js"></script>
+  <script src="/vendor/axios.min.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

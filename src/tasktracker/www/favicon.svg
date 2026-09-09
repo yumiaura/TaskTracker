@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TaskTracker">
+  <!-- Three rows, the top one ticked: the board read as an icon. Drawn on the
+       primary blue rather than on the page, so the tab mark is legible on a
+       light and a dark browser chrome alike - a favicon inherits neither
+       theme. -->
+  <rect width="32" height="32" rx="7" fill="#3b89ca"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 10.5l2.4 2.4L14 8.2"/>
+    <path d="M18 11h7"/>
+    <path d="M7 18h5"/>
+    <path d="M16 18h9"/>
+    <path d="M7 24h5"/>
+    <path d="M16 24h9"/>
+  </g>
+</svg>
