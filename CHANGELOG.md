@@ -8,6 +8,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Documentation: a compact README with badges, screenshots of the board and the
+  projects table, and a language switcher; Russian and Chinese translations
+  under `docs/`; four tests that resolve every relative link, check each README
+  links to the other two and not to itself, and assert the three carry the same
+  sections (`docs/readme-translations`).
 - The Claude Code plugin: the `PostToolUse` hook on `TodoWrite` that mirrors
   Claude's own todo list onto the board, the plugin and one-plugin marketplace
   manifests, the `.mcp.json` that connects the tracker's MCP server, and the
