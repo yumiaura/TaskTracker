@@ -16,9 +16,10 @@ disagree about what a date means.
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -138,6 +139,22 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     migrate(conn)
     return conn
+
+
+@contextlib.contextmanager
+def database(path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """A connection that is closed on the way out.
+
+    `with connect() as conn` would NOT do this: sqlite3's own context manager
+    commits or rolls back the transaction and leaves the connection open, which
+    on a long-lived process - the MCP server is one - is a file handle and a WAL
+    reader per tool call.
+    """
+    conn = connect(path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def migrate(conn: sqlite3.Connection) -> None:

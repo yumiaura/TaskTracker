@@ -8,6 +8,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The MCP server: eight stdio tools (`tasks_queued`, `tasks_all`, `task_add`,
+  `task_start`, `task_done`, `task_update`, `task_delete`, `projects_list`) and
+  the `tasktracker mcp` command that runs them. Its instructions tell Claude
+  not to re-file the todos the hook already mirrors (`feat/mcp`).
 - The web panel: a projects table, a board of three columns per project with
   drag and drop between them, the same cards as a sortable table behind a view
   toggle, and a settings screen for how long a finished task stays drawn. Vue 2

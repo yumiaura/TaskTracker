@@ -32,6 +32,12 @@ def parser() -> argparse.ArgumentParser:
     )
     serve.add_argument("--log-level", default="info")
 
+    # No options of its own. The transport is stdio because that is what a
+    # plugin's MCP client speaks, and the project comes from the working
+    # directory or from TASKTRACKER_PROJECT - both of which are the client's to
+    # set, not this parser's.
+    subs.add_parser("mcp", help="speak MCP over stdio (this is what the plugin runs)")
+
     subs.add_parser("where", help="print the database path")
     return root
 
@@ -83,6 +89,14 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    if args.command == "mcp":
+        # Imported here rather than at module scope: stdout is the protocol on
+        # this path, and logging configured for a terminal is not what a client
+        # parsing JSON-RPC wants to read. basicConfig above writes to stderr,
+        # which is where a stdio server's diagnostics belong.
+        from .mcp_server import main as run_mcp
+
+        return run_mcp()
     if args.command == "serve":
         return serve(args)
     if args.command == "where":
