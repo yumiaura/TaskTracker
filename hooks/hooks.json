@@ -1,0 +1,17 @@
+{
+  "description": "Mirrors Claude Code's own todo list onto the TaskTracker board, per project and per session.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/todo-mirror.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

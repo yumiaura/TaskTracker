@@ -8,6 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The Claude Code plugin: the `PostToolUse` hook on `TodoWrite` that mirrors
+  Claude's own todo list onto the board, the plugin and one-plugin marketplace
+  manifests, the `.mcp.json` that connects the tracker's MCP server, and the
+  `/tasktracker:tasks` and `/tasktracker:tasks-panel` commands. The hook is
+  standard library only and finds the package through `CLAUDE_PLUGIN_ROOT`, so
+  the mirror works before anything is pip-installed (`feat/plugin`).
 - The MCP server: eight stdio tools (`tasks_queued`, `tasks_all`, `task_add`,
   `task_start`, `task_done`, `task_update`, `task_delete`, `projects_list`) and
   the `tasktracker mcp` command that runs them. Its instructions tell Claude

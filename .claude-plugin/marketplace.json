@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "tasktracker",
+  "description": "A one-plugin marketplace, so this checkout can be installed with `/plugin marketplace add <path to this directory>`.",
+  "owner": {
+    "name": "Olya Pimenova"
+  },
+  "plugins": [
+    {
+      "name": "tasktracker",
+      "description": "A task board Claude fills in for itself: the todo list mirrored onto a per-project board that outlives the session, MCP tools for queueing work across sessions, and a local web panel to read it.",
+      "author": {
+        "name": "Olya Pimenova"
+      },
+      "category": "productivity",
+      "source": "./"
+    }
+  ]
+}
