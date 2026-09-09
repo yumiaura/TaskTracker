@@ -54,6 +54,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+# The `# -*- coding: utf-8 -*-` line at the head of every module is the house
+# header these projects carry; UP009 wants it gone because Python 3 assumes
+# UTF-8 anyway. It stays - it is a marker somebody greps for, not an encoding
+# declaration anybody relies on.
+ignore = ["UP009"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
