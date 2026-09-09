@@ -8,6 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The web server: a FastAPI application serving nine REST endpoints under
+  `/api` and the panel's static files at `/`, plus the `tasktracker` console
+  script (`serve`, `where`). Every failure leaves it in one envelope,
+  `{"error": {"message": …}}`, including the static mount's 404s and the
+  validation failures FastAPI would otherwise answer as a list of dictionaries
+  (`feat/api`).
 - `tasktracker.store`: the SQLite layer every process writes through - projects
   keyed on repository root, tasks in three columns with float positions, the
   settings row that controls how long a finished card is drawn, and the todo
