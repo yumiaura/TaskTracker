@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The PostToolUse hook: Claude Code's todo list, mirrored onto the board.
+"""The PostToolUse hook: Claude Code's own tasks, mirrored onto the board.
 
-This is what makes the board fill itself. Claude already keeps a todo list
-while it works and that list dies with the session; every time it writes one,
+This is what makes the board fill itself. Claude already keeps a task list
+while it works and that list dies with the session; every time it changes it,
 this runs and brings the session's cards on the board in line with it.
+
+Claude Code has kept that list two ways. Current versions use one tool call per
+task - TaskCreate adds one, TaskUpdate changes its status or its text - and
+older ones rewrite the whole list at once with TodoWrite. The hook listens to
+all three.
 
 Two rules govern everything here:
 
@@ -21,15 +26,23 @@ Two rules govern everything here:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from typing import Any
 
 from . import store
 
-# The tool whose writes are worth mirroring. The hook is registered with this
-# matcher too, so in normal operation nothing else reaches here - the check is
-# for a hook wired up by hand, or a matcher that grows later.
-TOOL = "TodoWrite"
+# The tools whose calls are worth mirroring. hooks.json registers the hook with
+# the same three names, so in normal operation nothing else reaches here - the
+# check is for a hook wired up by hand.
+TODO_WRITE = "TodoWrite"
+TASK_CREATE = "TaskCreate"
+TASK_UPDATE = "TaskUpdate"
+TOOLS = (TODO_WRITE, TASK_CREATE, TASK_UPDATE)
+
+# How TaskCreate words its result when it comes back as text rather than as an
+# object: "Task #3 created successfully: ...".
+TASK_NUMBER = re.compile(r"#(\d+)")
 
 
 def todos_from(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
@@ -55,25 +68,96 @@ def todos_from(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
     return None
 
 
-def mirror(payload: dict[str, Any]) -> dict[str, int] | None:
-    """Bring this session's cards in line with the list in the payload."""
-    if payload.get("tool_name") != TOOL:
-        return None
-    todos = todos_from(payload)
-    if todos is None:
+def created_task_id(payload: dict[str, Any]) -> str | None:
+    """The number TaskCreate gave the task it created.
+
+    It is in the tool's result, not its input - Claude asks for a task and Claude
+    Code numbers it. Read from `task.id` in the result object, and from the
+    "Task #N" in its text when the result arrives as a string.
+    """
+    response = payload.get("tool_response")
+    if isinstance(response, dict):
+        task = response.get("task")
+        if isinstance(task, dict) and task.get("id") is not None:
+            return str(task["id"])
+        response = response.get("content") or response.get("text")
+    if isinstance(response, list):
+        response = " ".join(
+            str(part.get("text", "")) for part in response if isinstance(part, dict)
+        )
+    if isinstance(response, str):
+        found = TASK_NUMBER.search(response)
+        if found:
+            return found.group(1)
+    return None
+
+
+def text_field(section: dict[str, Any], name: str) -> str | None:
+    value = section.get(name)
+    return value if isinstance(value, str) else None
+
+
+def mirror(payload: dict[str, Any]) -> Any:
+    """Apply one tool call from the payload to this session's cards."""
+    tool = payload.get("tool_name")
+    if tool not in TOOLS:
         return None
 
-    # The session is the identity of the mirror. Without one, two sessions in
-    # one repository would reconcile against each other's cards and each would
-    # withdraw what the other queued - so a payload with no session id is one
-    # this hook declines to act on rather than one it guesses at.
+    # The session is part of every card's identity. Without one, two sessions in
+    # one repository would reconcile against each other's cards - so a payload
+    # with no session id is one this hook declines to act on rather than one it
+    # guesses at.
     session_id = str(payload.get("session_id") or "").strip()
     if not session_id:
         return None
 
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        tool_input = {}
+
+    if tool == TODO_WRITE:
+        todos = todos_from(payload)
+        if todos is None:
+            return None
+        with store.database() as conn:
+            project = store.ensure_project(conn, payload.get("cwd") or ".")
+            return store.mirror_todos(conn, project["id"], session_id, todos)
+
+    if tool == TASK_CREATE:
+        number = created_task_id(payload)
+        title = text_field(tool_input, "subject")
+        if number is None or not title:
+            return None
+        with store.database() as conn:
+            project = store.ensure_project(conn, payload.get("cwd") or ".")
+            return store.mirror_task_created(
+                conn,
+                project["id"],
+                session_id,
+                number,
+                title=title,
+                detail=text_field(tool_input, "description") or "",
+            )
+
+    # TaskUpdate. A call the tool itself reports as failed changed nothing on
+    # Claude's side, and changes nothing here.
+    response = payload.get("tool_response")
+    if isinstance(response, dict) and response.get("success") is False:
+        return None
+    number = tool_input.get("taskId")
+    if number is None or str(number).strip() == "":
+        return None
     with store.database() as conn:
         project = store.ensure_project(conn, payload.get("cwd") or ".")
-        return store.mirror_todos(conn, project["id"], session_id, todos)
+        return store.mirror_task_updated(
+            conn,
+            project["id"],
+            session_id,
+            str(number).strip(),
+            status=text_field(tool_input, "status"),
+            title=text_field(tool_input, "subject"),
+            detail=text_field(tool_input, "description"),
+        )
 
 
 def main(stdin=None) -> int:
@@ -111,7 +195,7 @@ def main(stdin=None) -> int:
     try:
         mirror(payload)
     except Exception as exc:  # noqa: BLE001 - see the docstring
-        print(f"tasktracker: the todo mirror failed: {exc}", file=sys.stderr)
+        print(f"tasktracker: the task mirror failed: {exc}", file=sys.stderr)
     return 0
 
 

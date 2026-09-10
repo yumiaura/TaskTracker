@@ -168,7 +168,9 @@ def test_the_plugin_manifest_names_the_files_it_ships():
 
     hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())
     entry = hooks["hooks"]["PostToolUse"][0]
-    assert entry["matcher"] == "TodoWrite"
+    # Current Claude Code keeps its list with TaskCreate/TaskUpdate; older
+    # versions with TodoWrite. A matcher missing either never runs the hook.
+    assert set(entry["matcher"].split("|")) == {"TaskCreate", "TaskUpdate", "TodoWrite"}
     command = entry["hooks"][0]["command"]
     assert "todo-mirror.py" in command
     assert (PLUGIN_ROOT / "hooks" / "todo-mirror.py").is_file()
@@ -217,3 +219,162 @@ def test_the_commands_pre_approve_tools_by_the_names_claude_code_gives_them():
     for command, tool in named:
         assert tool.startswith(PLUGIN_TOOL_PREFIX), f"{command}: {tool}"
         assert tool[len(PLUGIN_TOOL_PREFIX):] in served, f"{command}: {tool} is not served"
+
+
+# ---------------------------------------------------------------------------
+# TaskCreate / TaskUpdate: what current Claude Code sends
+# ---------------------------------------------------------------------------
+#
+# The payload shapes below are the ones Claude Code 2.1 records for these
+# tools: TaskCreate takes subject/description/activeForm and answers with the
+# task's number in `task.id`; TaskUpdate takes taskId and status and answers
+# with `success`.
+
+
+def created(root, number, subject, description="", session="sess-1", response=None):
+    return {
+        "session_id": session,
+        "cwd": str(root),
+        "hook_event_name": "PostToolUse",
+        "tool_name": "TaskCreate",
+        "tool_input": {"subject": subject, "description": description, "activeForm": subject},
+        "tool_response": response if response is not None else {
+            "task": {"id": str(number), "subject": subject}
+        },
+    }
+
+
+def updated(root, number, session="sess-1", success=True, **fields):
+    return {
+        "session_id": session,
+        "cwd": str(root),
+        "hook_event_name": "PostToolUse",
+        "tool_name": "TaskUpdate",
+        "tool_input": {"taskId": str(number), **fields},
+        "tool_response": {
+            "success": success,
+            "taskId": str(number),
+            "updatedFields": sorted(fields),
+            "statusChange": fields.get("status"),
+        },
+    }
+
+
+def board(conn, root):
+    project = store.find_project(conn, str(root))
+    return {row["title"]: row for row in store.tasks(conn, project["id"])}
+
+
+def test_a_task_claude_creates_lands_queued_and_moves_with_it(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+
+    run(created(root, 1, "Read the code", "Start with the store"))
+    run(created(root, 2, "Write the patch"))
+    cards = board(conn, root)
+    assert cards["Read the code"]["status"] == store.QUEUED
+    assert cards["Read the code"]["detail"] == "Start with the store"
+    assert cards["Read the code"]["source"] == store.SOURCE_TODO
+
+    run(updated(root, 1, status="in_progress"))
+    assert board(conn, root)["Read the code"]["status"] == store.IN_PROGRESS
+    run(updated(root, 1, status="completed"))
+    assert board(conn, root)["Read the code"]["status"] == store.DONE
+
+    # A new subject is written onto the same card rather than making another.
+    run(updated(root, 2, subject="Write the patch and its test"))
+    assert set(board(conn, root)) == {"Read the code", "Write the patch and its test"}
+
+
+def test_a_task_claude_deletes_leaves_the_board_whatever_its_column(home, tmp_path, conn):
+    """The board mirrors Claude's tasks one for one."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 1, "Queued then dropped"))
+    run(created(root, 2, "Finished then dropped"))
+    run(updated(root, 2, status="completed"))
+
+    run(updated(root, 1, status="deleted"))
+    run(updated(root, 2, status="deleted"))
+    assert board(conn, root) == {}
+
+
+def test_the_number_is_read_from_a_text_result_too(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 4, "From text", response="Task #4 created successfully: From text"))
+    run(updated(root, 4, status="in_progress"))
+    assert board(conn, root)["From text"]["status"] == store.IN_PROGRESS
+
+
+def test_a_hook_run_twice_for_one_create_makes_one_card(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 1, "Only once"))
+    run(created(root, 1, "Only once"))
+    assert list(board(conn, root)) == ["Only once"]
+
+
+def test_numbers_are_per_session(home, tmp_path, conn):
+    """Every session's task list starts again at 1."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 1, "First session's task", session="a"))
+    run(created(root, 1, "Second session's task", session="b"))
+    run(updated(root, 1, session="b", status="completed"))
+
+    cards = board(conn, root)
+    assert cards["First session's task"]["status"] == store.QUEUED
+    assert cards["Second session's task"]["status"] == store.DONE
+
+
+def test_updates_that_cannot_be_applied_change_nothing(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 1, "Stays queued"))
+
+    # A number with no card: a task created before the plugin was installed.
+    run(updated(root, 9, status="completed"))
+    # An update the tool itself reports as failed.
+    run(updated(root, 1, success=False, status="completed"))
+
+    assert {title: row["status"] for title, row in board(conn, root).items()} == {
+        "Stays queued": store.QUEUED
+    }
+
+
+def test_a_todo_write_in_the_same_session_leaves_task_cards_alone(home, tmp_path, conn):
+    """The TodoWrite mirror reconciles its own cards, never ones TaskCreate made."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 1, "From TaskCreate"))
+    run(payload(root, todos=[{"content": "From TodoWrite", "status": "pending"}]))
+    run(payload(root, todos=[]))
+    assert list(board(conn, root)) == ["From TaskCreate"]
+
+
+def test_the_shipped_wrapper_mirrors_a_task_create(tmp_path):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    board_dir = tmp_path / "board"
+
+    done = subprocess.run(
+        [sys.executable, str(PLUGIN_ROOT / "hooks" / "todo-mirror.py")],
+        input=json.dumps(created(root, 1, "Through the wrapper")),
+        capture_output=True,
+        text=True,
+        env={
+            "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
+            config.HOME_ENV: str(board_dir),
+            "PATH": os.environ.get("PATH", ""),
+        },
+    )
+    assert done.returncode == 0
+    assert done.stdout == ""
+    assert done.stderr == ""
+
+    conn = store.connect(board_dir / "tasks.db")
+    try:
+        assert list(board(conn, root)) == ["Through the wrapper"]
+    finally:
+        conn.close()

@@ -39,8 +39,8 @@ from . import store
 INSTRUCTIONS = """
 TaskTracker keeps a per-project task board that outlives a session.
 
-Claude Code's own todo list is mirrored onto this board automatically - do not
-re-file the todos you are already tracking with TodoWrite.
+Claude Code's own task list is mirrored onto this board automatically - do not
+re-file the tasks you are already tracking with TaskCreate (or TodoWrite).
 
 Pass `project` on every call: the absolute path of the directory you are
 working in. The board may be running somewhere that cannot see where you are.
@@ -187,9 +187,9 @@ def task_add(
 
     For work worth doing that is not part of what you are doing right now - a
     follow-up, something noticed in passing, something to pick up next session.
-    Do NOT use it to re-file the todos you are already tracking with TodoWrite:
-    those are mirrored onto the board already, and filing them twice puts every
-    one of them on it twice.
+    Do NOT use it to re-file the tasks you are already tracking with TaskCreate
+    or TodoWrite: those are mirrored onto the board already, and filing them
+    twice puts every one of them on it twice.
 
     title: one line. Anything longer belongs in `detail`.
     project: the absolute path of the directory you are working in.

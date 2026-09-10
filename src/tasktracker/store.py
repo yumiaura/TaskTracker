@@ -61,6 +61,10 @@ TODO_STATUS = {
     "completed": DONE,
 }
 
+# The status TaskUpdate sends when Claude removes a task from its list. The card
+# goes with it: the board mirrors Claude's tasks one for one.
+TASK_DELETED = "deleted"
+
 # The board read left to right, as one SQL sort key. The table view lists the
 # same cards as the three columns do and in the same order, so switching views
 # does not reshuffle work somebody was halfway through reading.
@@ -88,6 +92,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   position     REAL    NOT NULL,
   source       TEXT    NOT NULL DEFAULT 'manual',
   session_id   TEXT,
+  external_id  TEXT,
   created_at   REAL    NOT NULL,
   updated_at   REAL    NOT NULL,
   started_at   REAL,
@@ -96,6 +101,10 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS tasks_by_project ON tasks (project_id, status, position);
 CREATE INDEX IF NOT EXISTS tasks_by_session ON tasks (project_id, session_id, source);
+-- One card per Claude task. TaskCreate numbers tasks within a session's own
+-- list, so the number is only unique together with the session and project.
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_by_external
+    ON tasks (project_id, session_id, external_id) WHERE external_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
@@ -450,6 +459,7 @@ def create_task(
     status: str = QUEUED,
     source: str = SOURCE_MANUAL,
     session_id: str | None = None,
+    external_id: str | None = None,
 ) -> dict[str, Any]:
     """Add one card, and refuse an empty one.
 
@@ -469,8 +479,9 @@ def create_task(
         cursor = conn.execute(
             """
             INSERT INTO tasks (project_id, title, detail, status, position, source,
-                               session_id, created_at, updated_at, started_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               session_id, external_id, created_at, updated_at,
+                               started_at, completed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 project_id,
@@ -480,6 +491,7 @@ def create_task(
                 position,
                 source,
                 session_id,
+                external_id,
                 now,
                 now,
                 now if status == IN_PROGRESS else None,
@@ -654,7 +666,7 @@ def mirror_todos(
             row["title"]: row
             for row in conn.execute(
                 "SELECT * FROM tasks WHERE project_id = ? AND session_id = ? AND source = ? "
-                "ORDER BY position, id",
+                "AND external_id IS NULL ORDER BY position, id",
                 (project_id, session_id, SOURCE_TODO),
             ).fetchall()
         }
@@ -712,3 +724,81 @@ def mirror_todos(
         if counts["added"] or counts["updated"] or counts["withdrawn"]:
             touch_project(conn, project_id, now)
     return counts
+
+
+# --------------------------------------------------------------------------
+# The task mirror
+# --------------------------------------------------------------------------
+
+
+def mirrored_task(
+    conn: sqlite3.Connection, project_id: int, session_id: str, external_id: str
+) -> dict[str, Any] | None:
+    """The card that mirrors one Claude task, or None."""
+    row = conn.execute(
+        "SELECT * FROM tasks WHERE project_id = ? AND session_id = ? AND external_id = ?",
+        (project_id, session_id, external_id),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def mirror_task_created(
+    conn: sqlite3.Connection,
+    project_id: int,
+    session_id: str,
+    external_id: str,
+    title: str,
+    detail: str = "",
+) -> dict[str, Any]:
+    """A card for a task Claude just created with TaskCreate.
+
+    Unlike TodoWrite, the task tools send one task at a time and number it, so
+    the number is the identity rather than the title. A second call for a number
+    that already has a card - a hook run twice for one tool call - updates that
+    card instead of adding a copy.
+    """
+    existing = mirrored_task(conn, project_id, session_id, external_id)
+    if existing is not None:
+        return update_task(conn, existing["id"], title=title, detail=detail)
+    return create_task(
+        conn,
+        project_id,
+        title=title,
+        detail=detail,
+        status=QUEUED,
+        source=SOURCE_TODO,
+        session_id=session_id,
+        external_id=external_id,
+    )
+
+
+def mirror_task_updated(
+    conn: sqlite3.Connection,
+    project_id: int,
+    session_id: str,
+    external_id: str,
+    status: str | None = None,
+    title: str | None = None,
+    detail: str | None = None,
+) -> dict[str, Any] | None:
+    """Apply one TaskUpdate to the card that mirrors that task.
+
+    The board mirrors Claude's tasks one for one: a status moves the card to its
+    column, a new subject or description is written onto it, and `deleted`
+    removes it whatever column it is in.
+
+    A task with no card is left alone. That is a task created before the plugin
+    was installed, and TaskUpdate carries its number but not its subject, so
+    there is no title to put on a card for it. None is returned then, and after
+    a delete.
+    """
+    existing = mirrored_task(conn, project_id, session_id, external_id)
+    if existing is None:
+        return None
+    if status == TASK_DELETED:
+        delete_task(conn, existing["id"])
+        return None
+    column = TODO_STATUS.get(status) if status else None
+    if column is None and title is None and detail is None:
+        return existing
+    return update_task(conn, existing["id"], title=title, detail=detail, status=column)
