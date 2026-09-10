@@ -80,9 +80,11 @@ TASKTRACKER_CARDS=claude    # the default
 TASKTRACKER_CARDS=prompts
 ```
 
-- **`claude`** - the cards are Claude's own tasks. At the start of every session the plugin
-  tells Claude to plan any work of more than one step as tasks and keep their status current;
-  each task is a card, marked `TODO`, that moves as Claude works.
+- **`claude`** - the cards are Claude's own tasks. The plugin tells Claude, at the start of
+  every session and again with every prompt, to plan any work of more than one step as tasks
+  and keep their status current; each task is a card, marked `TODO`, that moves as Claude
+  works. If Claude still does work - Bash, Edit, Write - without a single task, the prompt
+  itself lands in **DONE**, marked `PROMPT`. A question answered by reading makes no card.
 - **`prompts`** - every prompt you send is a card, marked `PROMPT`: its first line is the
   title, the whole prompt the detail. It is in **IN PROGRESS** while Claude answers and in
   **DONE** when it stops. Slash commands make no card, and Claude's own tasks are not shown.

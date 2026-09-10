@@ -6,6 +6,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Changed
+
+- Claude mode is reliable in long sessions. The instruction to keep a task list
+  now also rides on every prompt (a UserPromptSubmit hook), and a turn that did
+  work - Bash, Edit, Write - without touching the task list leaves the prompt
+  itself as a DONE card, read back from the session's transcript on Stop. A
+  turn of reading and answering makes no card (`feat/claude-mode-fallback`).
+
 ## [0.0.1] - 2026-09-10
 
 ### Added
