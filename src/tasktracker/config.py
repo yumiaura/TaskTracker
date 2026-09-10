@@ -68,6 +68,14 @@ and to completed when it is done. Do this even for work you could finish
 without a list - the list is what the user reads to follow along.
 """.strip()
 
+# The same, as one line added to every prompt in claude mode. The session-start
+# instruction arrives once and, in a long session, is soon a long way back; in
+# a real one Claude did thirty Bash and Edit calls after it without one task.
+PROMPT_REMINDER = (
+    "TaskTracker: if this request takes more than one step, track it with TaskCreate - "
+    "one task per step, in_progress with TaskUpdate before you start it, completed when done."
+)
+
 # How long a finished task stays on the board, in days, before the panel stops
 # drawing it. Zero means never hide. The task itself is not deleted by this and
 # never has been - see `store.visible_tasks`.

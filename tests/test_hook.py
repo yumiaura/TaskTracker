@@ -583,3 +583,110 @@ def test_the_plugin_runs_the_hook_on_prompts_and_stops():
     command = hooks["PostToolUse"][0]["hooks"][0]["command"]
     for event in ("UserPromptSubmit", "Stop"):
         assert hooks[event][0]["hooks"][0]["command"] == command
+
+
+# ---------------------------------------------------------------------------
+# Claude mode: a reminder on every prompt, and a card for work done untracked
+# ---------------------------------------------------------------------------
+
+
+def transcript(tmp_path, *entries):
+    """A session transcript in the JSONL shape Claude Code writes."""
+    path = tmp_path / "session.jsonl"
+    with path.open("w", encoding="utf-8") as out:
+        for entry in entries:
+            out.write(json.dumps(entry) + "\n")
+    return path
+
+
+def said(text, uuid):
+    return {"type": "user", "uuid": uuid, "message": {"role": "user", "content": text}}
+
+
+def used(*tools):
+    return {
+        "type": "assistant",
+        "message": {"content": [{"type": "tool_use", "name": name, "input": {}} for name in tools]},
+    }
+
+
+def returned():
+    return {"type": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}}
+
+
+def stopped(root, path, session="sess-1"):
+    return {**answer_ended(root, session), "transcript_path": str(path)}
+
+
+def test_in_claude_mode_every_prompt_carries_the_reminder(home, tmp_path, conn, capsys):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(prompt_sent(root, "Update everything and push"))
+    assert capsys.readouterr().out.strip() == config.PROMPT_REMINDER
+    # A slash command gets none, and no prompt makes a card by itself here.
+    run(prompt_sent(root, "/clear"))
+    assert capsys.readouterr().out == ""
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_work_done_without_a_task_list_becomes_a_done_card(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    path = transcript(
+        tmp_path,
+        said("Earlier question", "u0"),
+        said("Merge everything into main\nand push it", "u1"),
+        used("Bash"),
+        returned(),
+        used("Edit", "Bash"),
+        returned(),
+    )
+    run(stopped(root, path))
+    card = board(conn, root)["Merge everything into main"]
+    assert card["status"] == store.DONE
+    assert card["source"] == store.SOURCE_PROMPT
+    assert card["detail"] == "Merge everything into main\nand push it"
+
+    # The same Stop again is the same turn: still one card.
+    run(stopped(root, path))
+    assert list(board(conn, root)) == ["Merge everything into main"]
+
+
+def test_a_turn_that_kept_tasks_makes_no_extra_card(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    path = transcript(tmp_path, said("Do three things", "u1"), used("TaskCreate", "Bash"))
+    run(stopped(root, path))
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_a_question_answered_by_reading_makes_no_card(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    path = transcript(tmp_path, said("What does this function do?", "u1"), used("Read", "Grep"))
+    run(stopped(root, path))
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_a_slash_command_turn_is_not_pinned_on_the_prompt_before_it(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    path = transcript(
+        tmp_path,
+        said("Look at the logs", "u1"),
+        used("Read"),
+        said("<command-name>/deploy</command-name>", "u2"),
+        used("Bash"),
+        {"type": "user", "isMeta": True, "message": {"content": "caveat"}},
+        said("[Request interrupted by user]", "u3"),
+    )
+    run(stopped(root, path))
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_a_missing_transcript_is_quiet(home, tmp_path, conn, capsys):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    assert run(stopped(root, tmp_path / "nowhere.jsonl")) == 0
+    assert capsys.readouterr().out == ""
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))

@@ -49,8 +49,14 @@ TOOLS = (TODO_WRITE, TASK_CREATE, TASK_UPDATE)
 SESSION_START = "SessionStart"
 
 # The two events prompts mode makes cards from: a prompt sent, an answer ended.
+# Claude mode uses them too - to remind, and to catch work done without tasks.
 PROMPT_SUBMIT = "UserPromptSubmit"
 STOP = "Stop"
+
+# Tools that do work. A turn that used one of these and no task tool is work
+# that would otherwise leave nothing on the board. Reading, searching and
+# answering in words are not on the list: a question makes no card.
+WORK_TOOLS = ("Bash", "Edit", "Write", "MultiEdit", "NotebookEdit")
 
 # How TaskCreate words its result when it comes back as text rather than as an
 # object: "Task #3 created successfully: ...".
@@ -167,22 +173,116 @@ def prompt_event(payload: dict[str, Any]) -> Any:
         return store.open_prompt_card(conn, project["id"], session_id, prompt)
 
 
+def prompt_text(content: Any) -> str | None:
+    """The words of a user entry in a transcript, if it is a prompt at all.
+
+    Tool results are user entries too, and are not prompts. Nor is anything
+    Claude Code writes in angle brackets - a slash command, its output, a
+    caveat - which the caller treats as the start of a turn with no prompt.
+    """
+    if isinstance(content, list):
+        if any(isinstance(part, dict) and part.get("type") == "tool_result" for part in content):
+            return None
+        content = " ".join(
+            str(part.get("text", ""))
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
+    if not isinstance(content, str):
+        return None
+    return content.strip()
+
+
+def last_turn(transcript: str) -> tuple[str | None, str | None, list[str]]:
+    """The last prompt in a session's transcript, its id, and the tools used after it.
+
+    Read from the JSONL file Claude Code keeps and names in every hook payload,
+    so nothing has to be remembered between the prompt and the Stop. A slash
+    command or other bracketed entry starts a turn with no prompt, so the tools
+    it runs are never pinned on the prompt before it.
+    """
+    prompt: str | None = None
+    turn_id: str | None = None
+    tools: list[str] = []
+    with open(transcript, encoding="utf-8", errors="replace") as lines:
+        for line in lines:
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict) or entry.get("isMeta"):
+                continue
+            message = entry.get("message")
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if entry.get("type") == "user":
+                text = prompt_text(content)
+                if text is None or text.startswith("[Request interrupted"):
+                    continue
+                if not text or text.startswith("<"):
+                    prompt, turn_id, tools = None, None, []
+                else:
+                    prompt, turn_id, tools = text, str(entry.get("uuid") or ""), []
+                continue
+            if entry.get("type") == "assistant" and isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "tool_use":
+                        tools.append(str(part.get("name")))
+    return prompt, turn_id, tools
+
+
+def claude_mode_event(payload: dict[str, Any]) -> Any:
+    """Claude mode's use of the prompt events: a reminder, and a safety net.
+
+    On a prompt, the reminder to keep a task list goes into Claude's context -
+    every prompt, not only at the session's start, where a long session soon
+    leaves it behind. Slash commands get none.
+
+    On Stop, the turn is read back from the transcript. If Claude used a tool
+    that does work and never touched its task list, the prompt itself becomes
+    a card in DONE, so that work is on the board after all. A turn that kept
+    tasks is already there; a turn of reading and talking leaves nothing.
+    """
+    if payload.get("hook_event_name") == PROMPT_SUBMIT:
+        prompt = payload.get("prompt")
+        if isinstance(prompt, str) and prompt.strip() and not prompt.lstrip().startswith("/"):
+            print(config.PROMPT_REMINDER)
+        return None
+
+    session_id = str(payload.get("session_id") or "").strip()
+    cwd = payload.get("cwd")
+    transcript = payload.get("transcript_path")
+    if not session_id or not isinstance(cwd, str) or not isinstance(transcript, str):
+        return None
+    prompt, turn_id, tools = last_turn(transcript)
+    if not prompt or not turn_id:
+        return None
+    if any(tool in TOOLS for tool in tools) or not any(tool in WORK_TOOLS for tool in tools):
+        return None
+    with store.database() as conn:
+        project = store.ensure_project(conn, cwd)
+        return store.record_turn(conn, project["id"], session_id, turn_id, prompt)
+
+
 def mirror(payload: dict[str, Any]) -> Any:
     """Apply one hook payload to the board.
 
     A session start registers the project whatever the mode. Beyond that the
     mode in .env decides which events make cards: in prompts mode, the prompts
-    and the ends of Claude's answers; in claude mode, Claude's own task tools.
-    Each ignores the other's events, so the two never mix on one board.
+    and the ends of Claude's answers; in claude mode, Claude's own task tools,
+    with a reminder on every prompt and a card for any turn that did work
+    without them. Prompts mode ignores the task tools, so a board never gets
+    both a prompt card and the tasks for the same work.
     """
     event = payload.get("hook_event_name")
     if event == SESSION_START:
         return register(payload)
 
     if event in (PROMPT_SUBMIT, STOP):
-        if card_mode() != config.CARDS_PROMPTS:
-            return None
-        return prompt_event(payload)
+        if card_mode() == config.CARDS_PROMPTS:
+            return prompt_event(payload)
+        return claude_mode_event(payload)
 
     tool = payload.get("tool_name")
     if tool not in TOOLS:

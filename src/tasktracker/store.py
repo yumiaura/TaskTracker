@@ -856,3 +856,31 @@ def open_prompt_card(
         source=SOURCE_PROMPT,
         session_id=session_id,
     )
+
+
+def record_turn(
+    conn: sqlite3.Connection, project_id: int, session_id: str, turn_id: str, prompt: str
+) -> dict[str, Any] | None:
+    """A DONE card for a turn of claude mode that did work without a task list.
+
+    Keyed on the prompt's id in the transcript, so a Stop that fires twice for
+    one turn makes one card.
+    """
+    title = prompt_title(prompt)
+    if not title:
+        return None
+    external = f"turn:{turn_id}"
+    existing = mirrored_task(conn, project_id, session_id, external)
+    if existing is not None:
+        return existing
+    text = str(prompt).strip()
+    return create_task(
+        conn,
+        project_id,
+        title=title,
+        detail=text if text != title else "",
+        status=DONE,
+        source=SOURCE_PROMPT,
+        session_id=session_id,
+        external_id=external,
+    )

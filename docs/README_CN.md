@@ -78,9 +78,10 @@ TASKTRACKER_CARDS=claude    # 默认
 TASKTRACKER_CARDS=prompts
 ```
 
-- **`claude`** —— 卡片就是 Claude 自己的任务。每次会话开始时，插件会告诉 Claude：
-  凡是不止一步的工作都拆成任务并及时更新状态；每个任务是一张标着 `TODO` 的卡片，
-  随 Claude 的工作移动。
+- **`claude`** —— 卡片就是 Claude 自己的任务。插件会在每次会话开始时、并在每条请求中
+  再次告诉 Claude：凡是不止一步的工作都拆成任务并及时更新状态；每个任务是一张标着 `TODO`
+  的卡片，随 Claude 的工作移动。如果 Claude 仍然做了工作（Bash、Edit、Write）却没有建任何
+  任务，这条请求本身会以 `PROMPT` 标记进入 **DONE**。只靠阅读回答的问题不会生成卡片。
 - **`prompts`** —— 你发出的每一条请求都是一张标着 `PROMPT` 的卡片：第一行是标题，
   完整内容是详情。Claude 回答期间它在 **IN PROGRESS**，回答结束后移到 **DONE**。
   斜杠命令不会生成卡片，Claude 自己的任务也不会显示。
