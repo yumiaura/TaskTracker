@@ -6,8 +6,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.0.2] - 2026-09-10
+
 ### Changed
 
+- Version 0.0.2, in plugin.json, pyproject.toml and `__version__`, tagged
+  `v0.0.2`. CLAUDE.md now says the version is 0.0.2 and changes only when Olya
+  names a new one (`chore/release-0.0.2`).
 - Claude mode is reliable in long sessions. The instruction to keep a task list
   now also rides on every prompt (a UserPromptSubmit hook), and a turn that did
   work - Bash, Edit, Write - without touching the task list leaves the prompt
