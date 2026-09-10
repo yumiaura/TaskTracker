@@ -6,6 +6,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.0.1] - 2026-09-10
+
 ### Added
 
 - The README and its translations gain a fourth step, checking the plugin from
@@ -59,9 +61,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The plugin is version 0.1.1, so `claude plugin update` picks up the
-  `fix/plugin-config` fixes; with the version unchanged it reported "already at
-  the latest version" and kept the old files. The README and its translations
+- The first release: the plugin, the package and `__version__` are all
+  0.0.1, and are bumped together from here on (`chore/release-0.0.1`).
+- The plugin's version is bumped with every change to it, so `claude plugin
+  update` picks the change up; with the version unchanged it reported "already
+  at the latest version" and kept the old files. The README and its translations
   gain an **Updating** block, and a project `CLAUDE.md` records the rule that
   every branch touching the plugin bumps its version (`chore/plugin-version`).
 - The README and its translations install the plugin with the `claude plugin`
@@ -88,7 +92,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   between columns, rewrites its text, or removes it on `deleted`, one card per
   Claude task. Cards carry the Claude task number in a new `external_id`
   column; there is no migration, and a board created before this starts from a
-  fresh `tasks.db`. Plugin version 0.1.2 (`fix/task-tools-mirror`).
+  fresh `tasks.db` (`fix/task-tools-mirror`).
 - The plugin's MCP server is declared in `.claude-plugin/plugin.json` instead of
   a `.mcp.json` at the root of the checkout. Claude Code also read that file as
   the project's own MCP config whenever it ran inside the checkout, and the

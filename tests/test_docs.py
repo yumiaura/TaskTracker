@@ -73,3 +73,20 @@ def test_the_translations_cover_the_same_ground():
         text = readme.read_text(encoding="utf-8")
         counts[readme.name] = len(re.findall(r"^## ", text, flags=re.MULTILINE))
     assert len(set(counts.values())) == 1, counts
+
+
+def test_the_plugin_and_the_package_carry_one_version():
+    """One version, in the three places it is written.
+
+    `claude plugin update` reads plugin.json, pip reads pyproject.toml, and the
+    web app reports `__version__`. CLAUDE.md says to bump them together; this is
+    what notices when one of them was missed.
+    """
+    import json
+    import tomllib
+
+    from tasktracker import __version__
+
+    plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
+    package = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    assert plugin == package == __version__
