@@ -66,13 +66,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The first release: the plugin, the package and `__version__` are all
-  0.0.1, and are bumped together from here on (`chore/release-0.0.1`).
-- The plugin's version is bumped with every change to it, so `claude plugin
-  update` picks the change up; with the version unchanged it reported "already
-  at the latest version" and kept the old files. The README and its translations
-  gain an **Updating** block, and a project `CLAUDE.md` records the rule that
-  every branch touching the plugin bumps its version (`chore/plugin-version`).
+- The first release: the plugin, the package and `__version__` are all 0.0.1,
+  and stay there - changes go into 0.0.1 (`chore/release-0.0.1`,
+  `docs/version-0.0.1`).
+- The README and its translations gain an **Updating** block. With the version
+  held at 0.0.1, `claude plugin update` reports "already at the latest version"
+  and keeps the old files, so the block reinstalls the plugin instead, and a
+  project `CLAUDE.md` records both (`chore/plugin-version`,
+  `docs/version-0.0.1`).
 - The README and its translations install the plugin with the `claude plugin`
   commands run from the checkout (`claude plugin marketplace add ./`) instead
   of `/plugin` with a path to fill in, and say it is installed once for every

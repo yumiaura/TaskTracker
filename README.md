@@ -50,7 +50,8 @@ claude plugin install tasktracker@tasktracker
 ```bash
 docker compose up -d --build
 claude plugin marketplace update tasktracker
-claude plugin update tasktracker@tasktracker
+claude plugin uninstall tasktracker@tasktracker
+claude plugin install tasktracker@tasktracker
 ```
 
 Then restart Claude Code.
