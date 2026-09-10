@@ -10,6 +10,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The README and its translations show the board through one real Claude Code
+  session: the tasks landing in QUEUE, each moving to IN PROGRESS before Claude
+  starts on it, all of them in DONE - three frames of a panel that was never
+  reloaded (`docs/process-screenshot`).
 - The board, the table view and the task dialog name the three states the same
   way - QUEUE, IN PROGRESS, DONE - and the projects table counts all three
   instead of the queue alone. A TODO backlog column was tried and taken out

@@ -18,6 +18,12 @@ The board is a web panel: projects, then three columns - **queued**, **in progre
 
 <img src="docs/projects.png" width="800" alt="The projects table: name, when it was last touched, how many are queued">
 
+How it runs - a real Claude Code session, the panel never reloaded: Claude plans the work
+and the tasks land in **QUEUE** (1), each one moves to **IN PROGRESS** before Claude starts on
+it (2), and to **DONE** when it is finished (3).
+
+<img src="docs/process.png" width="800" alt="Three moments of one session: three tasks in QUEUE, the first in IN PROGRESS, all three in DONE">
+
 ## 🚀 Quick start
 
 **1. Start the board** - the panel and the MCP server, in one container:
