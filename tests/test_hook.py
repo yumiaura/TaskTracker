@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from tasktracker import config, hook, store
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -499,3 +501,85 @@ def test_in_prompts_mode_a_session_start_says_nothing(home, tmp_path, conn, caps
     run(session_start(root))
     assert [row["name"] for row in store.projects(conn)] == ["quiet"]
     assert capsys.readouterr().out == ""
+
+
+# ---------------------------------------------------------------------------
+# Prompts mode: a card per prompt
+# ---------------------------------------------------------------------------
+
+
+def prompt_sent(cwd, prompt, session="sess-1"):
+    return {
+        "session_id": session,
+        "cwd": str(cwd),
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": prompt,
+    }
+
+
+def answer_ended(cwd, session="sess-1"):
+    return {"session_id": session, "cwd": str(cwd), "hook_event_name": "Stop"}
+
+
+@pytest.fixture()
+def prompts_mode(home, conn):
+    store.set_setting(conn, config.CARDS_SETTING, config.CARDS_PROMPTS)
+
+
+def test_a_prompt_is_a_card_in_progress_until_claude_stops(prompts_mode, tmp_path, conn, capsys):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+
+    run(prompt_sent(root, "Fix the login form\nIt rejects valid emails."))
+    card = board(conn, root)["Fix the login form"]
+    assert card["status"] == store.IN_PROGRESS
+    assert card["source"] == store.SOURCE_PROMPT
+    assert card["detail"] == "Fix the login form\nIt rejects valid emails."
+
+    run(answer_ended(root))
+    assert board(conn, root)["Fix the login form"]["status"] == store.DONE
+
+    # UserPromptSubmit and Stop add their stdout to Claude's context: nothing.
+    assert capsys.readouterr().out == ""
+
+
+def test_the_next_prompt_closes_an_answer_that_was_interrupted(prompts_mode, tmp_path, conn):
+    """An interrupted answer fires no Stop; the next prompt finishes its card."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(prompt_sent(root, "First request"))
+    run(prompt_sent(root, "Second request"))
+    cards = board(conn, root)
+    assert cards["First request"]["status"] == store.DONE
+    assert cards["Second request"]["status"] == store.IN_PROGRESS
+
+
+def test_slash_commands_and_empty_prompts_make_no_card(prompts_mode, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(prompt_sent(root, "/clear"))
+    run(prompt_sent(root, "   "))
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_in_prompts_mode_claude_s_tasks_are_not_mirrored(prompts_mode, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(created(root, 1, "A task of Claude's"))
+    run(payload(root, todos=[{"content": "A todo of Claude's", "status": "pending"}]))
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_in_claude_mode_prompts_make_no_card(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    run(prompt_sent(root, "Not a card in claude mode"))
+    run(answer_ended(root))
+    assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+def test_the_plugin_runs_the_hook_on_prompts_and_stops():
+    hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"]
+    command = hooks["PostToolUse"][0]["hooks"][0]["command"]
+    for event in ("UserPromptSubmit", "Stop"):
+        assert hooks[event][0]["hooks"][0]["command"] == command

@@ -168,6 +168,7 @@ var SOURCE_TITLES = {
   todo: 'Mirrored from Claude’s own todo list while it worked.',
   mcp: 'Filed by Claude through the tracker’s tools.',
   manual: 'Typed into this panel.',
+  prompt: 'A prompt sent to Claude - done when Claude finished answering it.',
 };
 
 module.exports = {

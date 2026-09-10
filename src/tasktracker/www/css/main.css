@@ -83,6 +83,8 @@
   --tt-border:        #e5e7eb;
 
   --tt-success:       #009259;
+  --tt-prompt-light:  #f6dfa4;
+  --tt-prompt-deep:   #7a5200;
   --tt-success-light: #89d69a;
   --tt-success-deep:  #007544;
   --tt-danger:        #9c1753;
@@ -170,6 +172,8 @@
   --tt-border:        #2f383f;
 
   --tt-success:       #35b481;
+  --tt-prompt-light:  #3d3013;
+  --tt-prompt-deep:   #f0c96a;
   --tt-success-light: #14382a;
   --tt-success-deep:  #4cc294;
   --tt-danger:        #e8709d;
@@ -584,6 +588,7 @@ textarea:focus, input.form-control:focus, .form-control:focus, .form-select:focu
   color: var(--tt-primary-dark);
 }
 .tt-source-mcp { background: var(--tt-success-light); color: var(--tt-success-deep); }
+.tt-source-prompt { background: var(--tt-prompt-light); color: var(--tt-prompt-deep); }
 
 /* Status, as a word, for the table view - where there are no columns to say it
    and colour alone would be the only carrier. */
