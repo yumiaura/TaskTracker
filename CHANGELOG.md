@@ -105,6 +105,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The README and its translations describe the board as it is now: the QUEUE,
+  IN PROGRESS and DONE columns, a project appearing when a session starts, the
+  task dialog, the two card modes and how to choose one in `.env`, and a
+  Development section (tests with coverage, pre-commit, CI). Two new
+  screenshots from the real panel: the task dialog, and a board in prompts
+  mode (`docs/readme-update`).
 - A click on a task - a card on the board, a row in the table view - opens its
   dialog, where the title, the detail and the status are edited and a DELETE
   button removes it after the same confirmation as the trash icon. The table
