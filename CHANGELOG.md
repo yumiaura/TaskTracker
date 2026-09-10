@@ -55,6 +55,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The README and its translations install the plugin with the `claude plugin`
+  commands run from the checkout (`claude plugin marketplace add ./`) instead
+  of `/plugin` with a path to fill in, and say it is installed once for every
+  project. A bare `.` is rejected by Claude Code; `./` is stored as the
+  absolute path (`docs/plugin-install-shell`).
 - The plugin connects to the MCP server over HTTP, at the container, instead of
   starting it over stdio - so nothing has to be pip-installed on the host
   (`feat/docker`).

@@ -29,11 +29,11 @@ docker compose up -d
 
 面板地址是 http://127.0.0.1:8787。
 
-**2. 安装插件** —— 在 Claude Code 里：
+**2. 安装插件** —— 在同一目录下执行一次即可，所有项目都会生效：
 
-```
-/plugin marketplace add /TaskTracker/所在路径
-/plugin install tasktracker@tasktracker
+```bash
+claude plugin marketplace add ./
+claude plugin install tasktracker@tasktracker
 ```
 
 **3. 重启 Claude Code。** 从此 Claude 写下的每一条待办都会出现在看板上。
