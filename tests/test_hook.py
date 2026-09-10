@@ -41,11 +41,27 @@ def test_a_todo_list_lands_on_the_board(home, tmp_path, conn):
     root = tmp_path / "repo"
     (root / ".git").mkdir(parents=True)
 
-    assert run(payload(root, todos=[
-        {"content": "Read the code", "status": "completed", "activeForm": "Reading the code"},
-        {"content": "Write the patch", "status": "in_progress", "activeForm": "Writing"},
-        {"content": "Run the tests", "status": "pending", "activeForm": "Running"},
-    ])) == 0
+    assert (
+        run(
+            payload(
+                root,
+                todos=[
+                    {
+                        "content": "Read the code",
+                        "status": "completed",
+                        "activeForm": "Reading the code",
+                    },
+                    {
+                        "content": "Write the patch",
+                        "status": "in_progress",
+                        "activeForm": "Writing",
+                    },
+                    {"content": "Run the tests", "status": "pending", "activeForm": "Running"},
+                ],
+            )
+        )
+        == 0
+    )
 
     project = store.find_project(conn, str(root))
     assert project["name"] == "repo"
@@ -218,7 +234,7 @@ def test_the_commands_pre_approve_tools_by_the_names_claude_code_gives_them():
     assert named
     for command, tool in named:
         assert tool.startswith(PLUGIN_TOOL_PREFIX), f"{command}: {tool}"
-        assert tool[len(PLUGIN_TOOL_PREFIX):] in served, f"{command}: {tool} is not served"
+        assert tool[len(PLUGIN_TOOL_PREFIX) :] in served, f"{command}: {tool} is not served"
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +254,9 @@ def created(root, number, subject, description="", session="sess-1", response=No
         "hook_event_name": "PostToolUse",
         "tool_name": "TaskCreate",
         "tool_input": {"subject": subject, "description": description, "activeForm": subject},
-        "tool_response": response if response is not None else {
-            "task": {"id": str(number), "subject": subject}
-        },
+        "tool_response": response
+        if response is not None
+        else {"task": {"id": str(number), "subject": subject}},
     }
 
 

@@ -90,15 +90,16 @@ def test_every_api_failure_arrives_in_one_shape(client, board):
 
 def test_an_unknown_status_is_refused(client, board):
     card = client.post(f"/api/projects/{board['id']}/tasks", json={"title": "a"}).json()
-    assert client.post(
-        f"/api/tasks/{card['id']}/move", json={"status": "parked", "index": 0}
-    ).status_code == 400
+    assert (
+        client.post(
+            f"/api/tasks/{card['id']}/move", json={"status": "parked", "index": 0}
+        ).status_code
+        == 400
+    )
 
 
 def test_the_hide_setting_round_trips_and_is_bounded(client):
-    assert client.put("/api/settings", json={"done_hide_days": 30}).json() == {
-        "done_hide_days": 30
-    }
+    assert client.put("/api/settings", json={"done_hide_days": 30}).json() == {"done_hide_days": 30}
     assert client.get("/api/settings").json() == {"done_hide_days": 30}
     assert client.put("/api/settings", json={"done_hide_days": -1}).status_code == 422
     assert client.put("/api/settings", json={"done_hide_days": 99999}).status_code == 422
@@ -199,11 +200,16 @@ def test_a_failure_detail_reads_as_one_sentence():
     assert sentence("plain") == "plain"
     assert sentence({"error": {"message": "wrapped"}}) == "wrapped"
     assert sentence({"msg": "pydantic"}) == "pydantic"
-    assert sentence([
-        {"loc": ["body", "done_hide_days"], "msg": "too small"},
-        {"loc": ["body"], "type": "missing"},
-        "not a dict",
-    ]) == "done_hide_days: too small; missing; not a dict"
+    assert (
+        sentence(
+            [
+                {"loc": ["body", "done_hide_days"], "msg": "too small"},
+                {"loc": ["body"], "type": "missing"},
+                "not a dict",
+            ]
+        )
+        == "done_hide_days: too small; missing; not a dict"
+    )
     assert sentence(42) == "42"
 
 

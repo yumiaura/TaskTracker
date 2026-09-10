@@ -16,7 +16,9 @@ is the fallback.
 import os
 import sys
 
-ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
 sys.path.append(os.path.join(ROOT, "src"))
 
 try:

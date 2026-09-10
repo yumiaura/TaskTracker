@@ -219,20 +219,30 @@ def test_the_web_app_serves_the_tools_over_http(home, tmp_path, monkeypatch):
     (root / ".git").mkdir()
 
     with TestClient(build(), base_url="http://127.0.0.1:8787") as client:
-        init = rpc(client, 1, "initialize", {
-            "protocolVersion": "2025-06-18",
-            "capabilities": {},
-            "clientInfo": {"name": "test", "version": "0"},
-        })
+        init = rpc(
+            client,
+            1,
+            "initialize",
+            {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "0"},
+            },
+        )
         assert init.status_code == 200
         assert init.json()["result"]["serverInfo"]["name"] == "tasktracker"
 
         # Filed from a subdirectory, and still lands on the repository's board -
         # the same project the hook would have chosen.
-        added = rpc(client, 2, "tools/call", {
-            "name": "task_add",
-            "arguments": {"title": "Over HTTP", "project": str(root / "src")},
-        })
+        added = rpc(
+            client,
+            2,
+            "tools/call",
+            {
+                "name": "task_add",
+                "arguments": {"title": "Over HTTP", "project": str(root / "src")},
+            },
+        )
         assert added.json()["result"]["structuredContent"]["project"] == "overhttp"
 
         # And with no project, an error Claude can read rather than a guess.
