@@ -16,4 +16,4 @@ Nothing here imports fastapi or mcp at module scope. The hook runs on every
 TodoWrite and must not pay for a web framework it never touches.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
