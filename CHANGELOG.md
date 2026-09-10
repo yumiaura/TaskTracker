@@ -10,6 +10,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A project appears on the board as soon as a Claude Code session starts (or
+  resumes) in it, with empty columns, instead of only once Claude has created a
+  task there. The plugin's hook also runs on `SessionStart`, where it registers
+  the project and prints nothing (`feat/session-start-project`).
+
 - The README and its translations gain a fourth step, checking the plugin from
   inside Claude Code: `/mcp` shows the server connected, `/tasktracker:tasks`
   reads the queue, and a todo list Claude writes appears on the panel
