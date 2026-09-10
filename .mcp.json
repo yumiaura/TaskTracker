@@ -1,10 +1,6 @@
 {
   "tasktracker": {
-    "command": "python3",
-    "args": ["-m", "tasktracker.cli", "mcp"],
-    "env": {
-      "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}/src",
-      "TASKTRACKER_PROJECT": "${CLAUDE_PROJECT_DIR}"
-    }
+    "type": "http",
+    "url": "http://127.0.0.1:8787/mcp"
   }
 }
