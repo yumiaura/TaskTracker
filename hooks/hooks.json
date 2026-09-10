@@ -1,6 +1,17 @@
 {
-  "description": "Mirrors Claude Code's own task list (TaskCreate, TaskUpdate, TodoWrite) onto the TaskTracker board, per project and per session.",
+  "description": "Puts the project on the TaskTracker board when a session starts in it, and mirrors Claude Code's own task list (TaskCreate, TaskUpdate, TodoWrite) onto it.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/todo-mirror.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "TaskCreate|TaskUpdate|TodoWrite",

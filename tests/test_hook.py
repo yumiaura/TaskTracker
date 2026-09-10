@@ -378,3 +378,48 @@ def test_the_shipped_wrapper_mirrors_a_task_create(tmp_path):
         assert list(board(conn, root)) == ["Through the wrapper"]
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# SessionStart: the project appears when Claude is opened in it
+# ---------------------------------------------------------------------------
+
+
+def session_start(cwd, source="startup", session="sess-1"):
+    return {
+        "session_id": session,
+        "cwd": str(cwd),
+        "hook_event_name": "SessionStart",
+        "source": source,
+        "transcript_path": "/dev/null",
+    }
+
+
+def test_a_session_starting_in_a_folder_puts_its_project_on_the_board(home, tmp_path, conn, capsys):
+    root = tmp_path / "fresh"
+    (root / ".git").mkdir(parents=True)
+    (root / "src").mkdir()
+
+    # Started in a subdirectory, and resumed later: one project, the repository.
+    assert run(session_start(root / "src")) == 0
+    assert run(session_start(root, source="resume")) == 0
+
+    projects = store.projects(conn)
+    assert [row["name"] for row in projects] == ["fresh"]
+    assert store.tasks(conn, projects[0]["id"]) == []
+
+    # Claude Code adds a SessionStart hook's stdout to Claude's context. The board
+    # has nothing to say there.
+    assert capsys.readouterr().out == ""
+
+
+def test_a_session_start_with_no_folder_registers_nothing(home, conn):
+    body = session_start("")
+    assert run(body) == 0
+    assert store.projects(conn) == []
+
+
+def test_the_plugin_runs_the_hook_on_session_start():
+    hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"]
+    start = hooks["SessionStart"][0]["hooks"][0]["command"]
+    assert start == hooks["PostToolUse"][0]["hooks"][0]["command"]

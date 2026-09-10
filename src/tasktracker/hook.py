@@ -11,6 +11,11 @@ task - TaskCreate adds one, TaskUpdate changes its status or its text - and
 older ones rewrite the whole list at once with TodoWrite. The hook listens to
 all three.
 
+It also runs when a session starts, and then all it does is put the session's
+project on the board. A Claude project is a project on the board from the
+moment Claude is opened in it, not only once Claude has created a task there -
+many sessions never create one.
+
 Two rules govern everything here:
 
   * It must never fail loudly. A hook that exits non-zero, or writes to stdout,
@@ -39,6 +44,9 @@ TODO_WRITE = "TodoWrite"
 TASK_CREATE = "TaskCreate"
 TASK_UPDATE = "TaskUpdate"
 TOOLS = (TODO_WRITE, TASK_CREATE, TASK_UPDATE)
+
+# The event Claude Code sends when a session starts, resumes, or is cleared.
+SESSION_START = "SessionStart"
 
 # How TaskCreate words its result when it comes back as text rather than as an
 # object: "Task #3 created successfully: ...".
@@ -97,8 +105,26 @@ def text_field(section: dict[str, Any], name: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def register(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Put the project a session started in on the board, with nothing else.
+
+    No session id is needed: registering a project touches no card, so there is
+    nothing for two sessions to disagree about. Nothing is printed either - for
+    this event Claude Code adds whatever the hook writes to stdout to Claude's
+    context, and the board has nothing to say to Claude when a session starts.
+    """
+    cwd = payload.get("cwd")
+    if not isinstance(cwd, str) or not cwd.strip():
+        return None
+    with store.database() as conn:
+        return store.ensure_project(conn, cwd)
+
+
 def mirror(payload: dict[str, Any]) -> Any:
-    """Apply one tool call from the payload to this session's cards."""
+    """Apply one hook payload to the board: a session start, or one tool call."""
+    if payload.get("hook_event_name") == SESSION_START:
+        return register(payload)
+
     tool = payload.get("tool_name")
     if tool not in TOOLS:
         return None
