@@ -30,13 +30,15 @@ def test_health_names_the_database_it_opened(client, home):
     assert str(home) in body["database"]
 
 
-def test_a_project_row_carries_the_three_counts(client, conn, board):
-    store.create_task(conn, board["id"], "queued")
+def test_a_project_row_carries_the_four_counts(client, conn, board):
+    store.create_task(conn, board["id"], "new")
+    store.create_task(conn, board["id"], "next", status=store.QUEUED)
     store.create_task(conn, board["id"], "running", status=store.IN_PROGRESS)
 
     rows = client.get("/api/projects").json()["projects"]
     assert len(rows) == 1
-    assert (rows[0]["queued"], rows[0]["in_progress"], rows[0]["done"]) == (1, 1, 0)
+    row = rows[0]
+    assert (row["todo"], row["queued"], row["in_progress"], row["done"]) == (1, 1, 1, 0)
 
 
 def test_the_board_answers_with_project_tasks_and_settings_together(client, conn, board):
@@ -53,7 +55,8 @@ def test_creating_editing_moving_and_deleting_a_card(client, board):
     )
     assert created.status_code == 201
     card = created.json()
-    assert card["status"] == "queued" and card["source"] == "manual"
+    # Everything new lands in the backlog.
+    assert card["status"] == "todo" and card["source"] == "manual"
 
     edited = client.patch(f"/api/tasks/{card['id']}", json={"title": "write it properly"}).json()
     assert edited["title"] == "write it properly"

@@ -52,7 +52,7 @@ def test_a_todo_list_lands_on_the_board(home, tmp_path, conn):
     rows = {row["title"]: row for row in store.tasks(conn, project["id"])}
     assert rows["Read the code"]["status"] == store.DONE
     assert rows["Write the patch"]["status"] == store.IN_PROGRESS
-    assert rows["Run the tests"]["status"] == store.QUEUED
+    assert rows["Run the tests"]["status"] == store.TODO
     assert all(row["source"] == store.SOURCE_TODO for row in rows.values())
 
 
@@ -265,14 +265,14 @@ def board(conn, root):
     return {row["title"]: row for row in store.tasks(conn, project["id"])}
 
 
-def test_a_task_claude_creates_lands_queued_and_moves_with_it(home, tmp_path, conn):
+def test_a_task_claude_creates_lands_in_todo_and_moves_with_it(home, tmp_path, conn):
     root = tmp_path / "repo"
     (root / ".git").mkdir(parents=True)
 
     run(created(root, 1, "Read the code", "Start with the store"))
     run(created(root, 2, "Write the patch"))
     cards = board(conn, root)
-    assert cards["Read the code"]["status"] == store.QUEUED
+    assert cards["Read the code"]["status"] == store.TODO
     assert cards["Read the code"]["detail"] == "Start with the store"
     assert cards["Read the code"]["source"] == store.SOURCE_TODO
 
@@ -324,14 +324,14 @@ def test_numbers_are_per_session(home, tmp_path, conn):
     run(updated(root, 1, session="b", status="completed"))
 
     cards = board(conn, root)
-    assert cards["First session's task"]["status"] == store.QUEUED
+    assert cards["First session's task"]["status"] == store.TODO
     assert cards["Second session's task"]["status"] == store.DONE
 
 
 def test_updates_that_cannot_be_applied_change_nothing(home, tmp_path, conn):
     root = tmp_path / "repo"
     (root / ".git").mkdir(parents=True)
-    run(created(root, 1, "Stays queued"))
+    run(created(root, 1, "Stays in the backlog"))
 
     # A number with no card: a task created before the plugin was installed.
     run(updated(root, 9, status="completed"))
@@ -339,7 +339,7 @@ def test_updates_that_cannot_be_applied_change_nothing(home, tmp_path, conn):
     run(updated(root, 1, success=False, status="completed"))
 
     assert {title: row["status"] for title, row in board(conn, root).items()} == {
-        "Stays queued": store.QUEUED
+        "Stays in the backlog": store.TODO
     }
 
 
@@ -423,3 +423,27 @@ def test_the_plugin_runs_the_hook_on_session_start():
     hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"]
     start = hooks["SessionStart"][0]["hooks"][0]["command"]
     assert start == hooks["PostToolUse"][0]["hooks"][0]["command"]
+
+
+def test_pending_from_claude_leaves_a_card_the_user_queued_where_it_is(home, tmp_path, conn):
+    """QUEUE is the user's pick. Claude saying "not started" does not undo it."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+
+    run(created(root, 1, "Picked for next"))
+    card = board(conn, root)["Picked for next"]
+    store.move_task(conn, card["id"], store.QUEUED, 0)
+
+    run(updated(root, 1, status="pending"))
+    assert board(conn, root)["Picked for next"]["status"] == store.QUEUED
+
+    # And the same through TodoWrite, which re-sends every entry each time.
+    run(payload(root, session="tw", todos=[{"content": "Old style", "status": "pending"}]))
+    old = board(conn, root)["Old style"]
+    store.move_task(conn, old["id"], store.QUEUED, 0)
+    run(payload(root, session="tw", todos=[{"content": "Old style", "status": "pending"}]))
+    assert board(conn, root)["Old style"]["status"] == store.QUEUED
+
+    # Starting it still moves it on.
+    run(updated(root, 1, status="in_progress"))
+    assert board(conn, root)["Picked for next"]["status"] == store.IN_PROGRESS

@@ -17,7 +17,10 @@
           <tr>
             <th>PROJECT</th>
             <th style="width:180px">UPDATED</th>
-            <th style="width:110px" class="text-end">QUEUED</th>
+            <th style="width:90px" class="text-end">TODO</th>
+            <th style="width:90px" class="text-end">QUEUE</th>
+            <th style="width:120px" class="text-end">IN PROGRESS</th>
+            <th style="width:90px" class="text-end">DONE</th>
             <th style="width:60px"></th>
           </tr>
         </thead>
@@ -38,7 +41,10 @@
                  on", and a column of absolute stamps makes that a subtraction
                  done by eye on every row. -->
             <td :title="project.updated_at | datetime">{{ project.updated_at | ago }}</td>
+            <td class="text-end">{{ project.todo }}</td>
             <td class="text-end">{{ project.queued }}</td>
+            <td class="text-end">{{ project.in_progress }}</td>
+            <td class="text-end">{{ project.done }}</td>
             <td class="td-actions" @click.stop>
               <i class="fa fa-trash text-danger" role="button" tabindex="0"
                  title="Remove this project from the board"
@@ -50,7 +56,7 @@
                the day it is installed, and the one thing its owner needs to
                know then is that they do not have to do anything to fill it. -->
           <tr v-if="!projects.length && !error">
-            <td colspan="4" class="text-center text-muted-soft py-3">
+            <td colspan="7" class="text-center text-muted-soft py-3">
               No projects yet. One appears here the first time Claude writes a
               task while working in a directory.
             </td>
@@ -116,7 +122,7 @@ module.exports = {
        in that directory. The sentence says so, because a dialog that reads as
        though it might delete a repository is one nobody presses. */
     remove: async function (project) {
-      var counted = project.queued + project.in_progress + project.done;
+      var counted = project.todo + project.queued + project.in_progress + project.done;
       var ok = await this.$refs.confirm.ask({
         title: 'REMOVE PROJECT',
         body: 'Remove "' + project.name + '" from the board?\n\n' +

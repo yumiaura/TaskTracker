@@ -8,10 +8,10 @@ Read this project's board and report it.
 1. Call `tasks_queued` with `project` set to the absolute path of the directory
    this session is working in. The board runs in a container and cannot see that
    directory on its own.
-2. Report what comes back as two short lists - IN PROGRESS first, then QUEUED -
-   with each task's id in front of its title, so the user can name one back to
-   you.
-3. If both lists are empty, say so in one line. Do not offer to add anything
+2. Report what comes back as three short lists - IN PROGRESS first, then QUEUE,
+   then TODO - with each task's id in front of its title, so the user can name
+   one back to you.
+3. If all three lists are empty, say so in one line. Do not offer to add anything
    unless the user asks.
 
 If the tool cannot be reached, the board's container is not running: tell the
