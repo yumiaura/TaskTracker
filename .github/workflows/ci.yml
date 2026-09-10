@@ -1,0 +1,42 @@
+# Lint, format check and the test suite with coverage, on every pull request and
+# on every push to main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One version failing is worth seeing next to the other passing.
+      fail-fast: false
+      matrix:
+        # The floor pyproject.toml declares, and the version the Docker image
+        # runs.
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install the package with its dev extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Lint
+        run: ruff check src tests hooks
+
+      - name: Format
+        run: ruff format --check src tests hooks
+
+      - name: Tests with coverage
+        run: pytest --cov --cov-report=term-missing

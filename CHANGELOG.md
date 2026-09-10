@@ -10,6 +10,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A GitHub Actions workflow, `.github/workflows/ci.yml`: on every pull request
+  and every push to main, on Python 3.11 and 3.12, it installs the package with
+  its dev extras and runs ruff check, ruff format --check and pytest --cov. A
+  test keeps the matrix's lowest Python equal to `requires-python`
+  (`ci/github-actions`).
 - pre-commit hooks in `.pre-commit-config.yaml`: ruff's lint (with fixes) and
   formatter, pinned to ruff 0.15.12, and the whole pytest suite on every
   commit. `pre-commit` joins the dev extras; the code is formatted with ruff
