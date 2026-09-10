@@ -45,3 +45,19 @@ def test_a_file_belongs_to_the_repository_it_is_in(tmp_path):
     source.parent.mkdir()
     source.write_text("")
     assert config.project_root(source) == root.resolve()
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("claude", "claude"),
+        ("prompts", "prompts"),
+        (" Prompts ", "prompts"),
+        ("", "claude"),
+        # A typo falls back to the default rather than leaving the board empty.
+        ("prompt", "claude"),
+    ],
+)
+def test_the_card_mode_falls_back_to_claude(monkeypatch, raw, expected):
+    monkeypatch.setenv(config.CARDS_ENV, raw)
+    assert config.cards_mode() == expected

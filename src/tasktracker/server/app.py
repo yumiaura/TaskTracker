@@ -15,7 +15,7 @@ from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from .. import __version__, mcp_server
+from .. import __version__, config, mcp_server, store
 from . import routes_api, webui
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,12 @@ def build() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # The hooks run on the host and never see this process's environment,
+        # so the card mode from .env reaches them through the database they
+        # already open. Written on every start, so changing .env and
+        # recreating the container is all it takes.
+        with store.database() as conn:
+            store.set_setting(conn, config.CARDS_SETTING, config.cards_mode())
         async with manager.run():
             yield
 

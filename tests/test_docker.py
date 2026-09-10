@@ -59,3 +59,12 @@ def test_everything_the_dockerfile_copies_is_let_through_the_ignore_file():
     for source in sources:
         top = source.split("/")[0]
         assert f"!{top}" in ignored, f"{source} is copied but ignored"
+
+
+def test_the_card_mode_reaches_the_container_from_env():
+    assert "TASKTRACKER_CARDS: ${TASKTRACKER_CARDS:-claude}" in COMPOSE
+    example = (ROOT / ".env.example").read_text()
+    assert "TASKTRACKER_CARDS=claude" in example
+    assert "prompts" in example
+    # The real .env is local; the example is the one in the history.
+    assert ".env" in (ROOT / ".gitignore").read_text().splitlines()

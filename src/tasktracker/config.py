@@ -42,6 +42,32 @@ DEFAULT_PORT = 8787
 HOST_ENV = "TASKTRACKER_HOST"
 PORT_ENV = "TASKTRACKER_PORT"
 
+# Where the board's cards come from, chosen in the .env beside docker-compose.yml.
+#
+#   claude  - Claude is told to plan its work as tasks, and the cards are
+#             Claude's own tasks (TaskCreate/TaskUpdate, or TodoWrite).
+#   prompts - every prompt sent to Claude is a card: IN PROGRESS while Claude
+#             works on it, DONE when it stops. Claude's tasks are not mirrored.
+CARDS_ENV = "TASKTRACKER_CARDS"
+CARDS_CLAUDE = "claude"
+CARDS_PROMPTS = "prompts"
+CARDS_MODES = (CARDS_CLAUDE, CARDS_PROMPTS)
+# The settings row the server writes the mode into, for the hooks on the host -
+# which run outside the container and never see its environment.
+CARDS_SETTING = "cards"
+
+# What claude mode tells Claude at the start of every session: keep a task list
+# at all. Without it Claude keeps one only when it judges the work big enough,
+# and a session of questions and small edits leaves its project on the board
+# with no cards.
+PLAN_INSTRUCTIONS = """
+TaskTracker is mirroring this session's task list onto the user's task board.
+Before you start anything that takes more than one step, create one task per
+step with TaskCreate. Set each to in_progress with TaskUpdate when you start it
+and to completed when it is done. Do this even for work you could finish
+without a list - the list is what the user reads to follow along.
+""".strip()
+
 # How long a finished task stays on the board, in days, before the panel stops
 # drawing it. Zero means never hide. The task itself is not deleted by this and
 # never has been - see `store.visible_tasks`.
@@ -87,6 +113,16 @@ def default_port() -> int:
     except ValueError:
         return DEFAULT_PORT
     return port if 1 <= port <= 65535 else DEFAULT_PORT
+
+
+def cards_mode(raw: str | None = None) -> str:
+    """The card mode, falling back to `claude` for anything it does not know.
+
+    As with the port: a typo in .env is not a reason for a board that stops
+    filling. The default is the mode the board was built around.
+    """
+    value = (os.environ.get(CARDS_ENV, "") if raw is None else raw).strip().lower()
+    return value if value in CARDS_MODES else CARDS_CLAUDE
 
 
 def project_root(start: str | os.PathLike[str] | None = None) -> Path:

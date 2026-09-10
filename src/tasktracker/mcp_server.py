@@ -29,14 +29,14 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
-from . import store
+from . import config, store
 
 # What the server tells Claude about itself, once, at connection.
 #
 # It says when NOT to call these as clearly as when to: the todo list is already
 # mirrored, so a session that also files every one of its own todos through
 # `task_add` doubles every card on the board.
-INSTRUCTIONS = """
+BASE_INSTRUCTIONS = """
 TaskTracker keeps a per-project task board that outlives a session.
 
 Claude Code's own task list is mirrored onto this board automatically - do not
@@ -55,6 +55,21 @@ Use these tools for what the todo list cannot hold:
 
 Task ids are stable. Titles are one line; anything longer belongs in `detail`.
 """.strip()
+
+
+def instructions(mode: str) -> str:
+    """The server's instructions for a card mode (see config.CARDS_MODES).
+
+    Claude mode repeats the plugin's session-start instruction here. The hook's
+    is the one that works - Claude reads a server's instructions as advice about
+    that server's tools - but it costs nothing to say it twice.
+    """
+    if mode == config.CARDS_CLAUDE:
+        return config.PLAN_INSTRUCTIONS + "\n\n" + BASE_INSTRUCTIONS
+    return BASE_INSTRUCTIONS
+
+
+INSTRUCTIONS = instructions(config.cards_mode())
 
 server: FastMCP = FastMCP("tasktracker", instructions=INSTRUCTIONS)
 

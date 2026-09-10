@@ -18,6 +18,9 @@ venv/
 htmlcov/
 coverage.xml
 
+# Local settings for docker compose - .env.example is the one in the history.
+.env
+
 # The tracker's own data, if anybody points TASKTRACKER_HOME at the checkout
 # while developing. The real store lives under ~/.claude/tasktracker and is
 # never inside this tree, but a stray tasks.db committed once is a stray

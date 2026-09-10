@@ -280,3 +280,24 @@ def test_the_stdio_entry_point_trusts_the_working_directory(monkeypatch):
     assert mcp_server.main() == 0
     assert ran == ["stdio"]
     assert mcp_server.cwd_is_project is True
+
+
+def test_claude_mode_tells_claude_to_keep_a_task_list():
+    told = mcp_server.instructions("claude")
+    assert "TaskCreate" in told and "in_progress" in told
+    assert told.startswith(config.PLAN_INSTRUCTIONS)
+    # In prompts mode the cards are the user's prompts, and Claude is not asked
+    # to keep a list for the board's sake.
+    assert mcp_server.instructions("prompts") == mcp_server.BASE_INSTRUCTIONS
+
+
+def test_the_server_records_the_card_mode_for_the_hooks(home, monkeypatch, conn):
+    """The hooks run on the host and read the mode from the database."""
+    from fastapi.testclient import TestClient
+
+    from tasktracker.server.app import build
+
+    monkeypatch.setenv(config.CARDS_ENV, "prompts")
+    with TestClient(build(), base_url="http://127.0.0.1:8787"):
+        pass
+    assert store.setting(conn, config.CARDS_SETTING, "") == "prompts"

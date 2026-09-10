@@ -10,6 +10,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Where the cards come from is chosen in `.env` beside docker-compose.yml:
+  `TASKTRACKER_CARDS=claude` (the default) or `prompts`, documented in
+  `.env.example`. The container records the mode in the database when it
+  starts, for the hooks on the host. In claude mode the SessionStart hook tells
+  Claude to plan any work of more than one step as tasks and keep their status
+  current - a session that asked for none now keeps a list the board mirrors
+  (`feat/cards-mode`).
 - A GitHub Actions workflow, `.github/workflows/ci.yml`: on every pull request
   and every push to main, on Python 3.11 and 3.12, it installs the package with
   its dev extras and runs ruff check, ruff format --check and pytest --cov. A

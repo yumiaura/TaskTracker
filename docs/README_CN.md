@@ -32,7 +32,8 @@ cd TaskTracker
 docker compose up -d
 ```
 
-面板地址是 http://127.0.0.1:8787。
+面板地址是 http://127.0.0.1:8787。卡片的来源 —— Claude 自己的任务，还是你发出的每一条请求 ——
+在 `.env` 中设置，见 [`.env.example`](../.env.example)。
 
 **2. 安装插件** —— 在同一目录下执行一次即可，所有项目都会生效：
 

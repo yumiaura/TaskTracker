@@ -33,7 +33,8 @@ cd TaskTracker
 docker compose up -d
 ```
 
-The panel is at http://127.0.0.1:8787.
+The panel is at http://127.0.0.1:8787. Where the cards come from - Claude's own tasks, or
+every prompt you send - is set in `.env`; see [`.env.example`](.env.example).
 
 **2. Install the plugin** - once, from the same directory; it works in every project:
 
