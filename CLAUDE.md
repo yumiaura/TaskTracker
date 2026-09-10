@@ -1,29 +1,34 @@
 # TaskTracker: instructions for Claude Code
 
-## Bump the version with every plugin change
+## The version is 0.0.1 - do not bump it
 
-Claude Code installs this plugin as a copy, and `claude plugin update` decides
-whether there is anything to update by the `version` in
-`.claude-plugin/plugin.json` alone. If the version did not change, it reports
-"already at the latest version" and keeps the old files - whatever else changed.
+The plugin, the package and the web app are version 0.0.1, and they stay at
+0.0.1. Do not raise it for a fix or a feature; a change goes into 0.0.1. Only
+Olya changes the version.
 
-So every branch that touches what the installed copy contains bumps the version
-once before it lands. It is one version, kept in three places that always carry
-the same number - `tests/test_docs.py` fails when they differ:
+It is one version, kept in three places that always carry the same number -
+`tests/test_docs.py` fails when they differ:
 
 - `version` in `.claude-plugin/plugin.json`;
 - `version` in `pyproject.toml`;
 - `__version__` in `src/tasktracker/__init__.py`.
 
-What counts as touching the installed copy:
+## Getting a change into an installed plugin
 
-- `.claude-plugin/`, `hooks/`, `commands/`;
-- `src/tasktracker/` - the hook imports the package from the plugin's own copy.
+Claude Code installs the plugin as a copy, and `claude plugin update` acts only
+when the `version` in `.claude-plugin/plugin.json` changes. With the version
+held at 0.0.1 it reports "already at the latest version" and keeps the old
+files, so a change reaches an installed copy by reinstalling it - the README's
+**Updating** block:
 
-The patch number for fixes and small changes (0.0.1 -> 0.0.2), the minor number
-for new features, as the CHANGELOG's Semantic Versioning line says. Users then
-update with the commands in the README's **Updating** block.
+```bash
+claude plugin marketplace update tasktracker
+claude plugin uninstall tasktracker@tasktracker
+claude plugin install tasktracker@tasktracker
+```
 
-Established 2026-09-10, after the `fix/plugin-config` fixes shipped under an
-unchanged 0.1.0 and `claude plugin update` left the installed copy on the old
-files.
+then a restart of Claude Code. That is needed after any change to what the
+installed copy contains: `.claude-plugin/`, `hooks/`, `commands/`, or
+`src/tasktracker/` - the hook imports the package from the plugin's own copy.
+
+Established 2026-09-10: Olya set the version to 0.0.1 and said to keep it there.
