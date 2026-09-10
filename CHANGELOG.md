@@ -100,6 +100,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The panel's API answered 500 on a share of its polls with "SQLite objects
+  created in a thread can only be used in that same thread". FastAPI opens a
+  request's connection on one pool thread and may run the handler on another;
+  the request connection now opens with sqlite3's same-thread check off. It is
+  still one connection per request, used by one thread at a time
+  (`fix/sqlite-threads`).
 - The board fills itself again on current Claude Code. The hook listened only
   to `TodoWrite`, which Claude Code 2.1 no longer calls - it keeps its task list
   with `TaskCreate` and `TaskUpdate` - so no card was ever mirrored. The hook now

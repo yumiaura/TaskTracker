@@ -129,3 +129,39 @@ def test_the_panel_is_served_at_the_root(client):
     # for / depends on whether the www directory has been built yet, and either
     # answer proves the API in front of it still resolves.
     assert client.get("/api/health").status_code == 200
+
+
+def test_a_request_connection_works_on_another_thread_than_the_one_that_opened_it(home):
+    """FastAPI opens a request's connection on one pool thread and may use it on
+    another. sqlite3 refuses that by default, and every request that landed that
+    way answered 500 - intermittently, on the panel's own polls.
+    """
+    import threading
+
+    from tasktracker.server import routes_api
+
+    opened = routes_api.connection()
+    conn = next(opened)
+    failures = []
+
+    def use():
+        try:
+            conn.execute("SELECT count(*) FROM projects").fetchone()
+        except Exception as exc:  # noqa: BLE001 - the failure is what is asserted on
+            failures.append(exc)
+
+    worker = threading.Thread(target=use)
+    worker.start()
+    worker.join()
+    opened.close()
+    assert failures == []
+
+
+def test_the_panel_s_concurrent_polls_all_answer_200(client, board):
+    """The header and the board poll at the same moment. Both must answer."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    paths = ["/api/projects", f"/api/projects/{board['id']}"] * 20
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        codes = list(pool.map(lambda path: client.get(path).status_code, paths))
+    assert set(codes) == {200}
