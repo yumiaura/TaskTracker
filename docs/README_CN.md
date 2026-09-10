@@ -10,18 +10,24 @@
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT 许可证">
 </p>
 
-Claude Code 工作时会维护一份待办清单 —— 而这份清单会随会话一起消失。<br>
+Claude Code 工作时会维护一份任务清单 —— 而这份清单会随会话一起消失。<br>
 TaskTracker 把它按项目镜像到看板上，并为 Claude 提供 MCP 工具，下次可以把队列读回来。<br>
-看板是一个网页面板：先是项目列表，再是三列 —— **排队中**、**进行中**、**已完成**。
+看板是一个网页面板：先是项目列表，再是三列 —— **QUEUE**、**IN PROGRESS**、**DONE**。<br>
+在某个项目里启动 Claude 的那一刻，这个项目就会出现；面板会自动刷新。
 
 <img src="board.png" width="800" alt="单个项目的看板：三列，卡片可在列之间拖动">
 
-<img src="projects.png" width="800" alt="项目表：名称、最后更新时间、排队中的任务数">
+<img src="projects.png" width="800" alt="项目表：每个项目的 QUEUE、IN PROGRESS 和 DONE 计数">
 
 实际效果 —— 一次真实的 Claude Code 会话，面板从未刷新页面：Claude 规划工作，任务进入
 **QUEUE**（1）；每个任务在 Claude 开始处理之前移到 **IN PROGRESS**（2），完成后移到 **DONE**（3）。
 
 <img src="process.png" width="800" alt="同一会话的三个时刻：三个任务在 QUEUE，第一个在 IN PROGRESS，三个都在 DONE">
+
+点击一个任务 —— 看板上的卡片或表格中的一行 —— 即可打开它：修改标题和详情、更改状态，
+或删除它。卡片也可以在列之间拖动。
+
+<img src="dialog.png" width="560" alt="任务对话框：标题、详情、状态，以及 DELETE、CANCEL 和 SAVE">
 
 ## 🚀 快速开始
 
@@ -32,8 +38,7 @@ cd TaskTracker
 docker compose up -d
 ```
 
-面板地址是 http://127.0.0.1:8787。卡片的来源 —— Claude 自己的任务，还是你发出的每一条请求 ——
-在 `.env` 中设置，见 [`.env.example`](../.env.example)。
+面板地址是 http://127.0.0.1:8787。卡片的来源在 `.env` 中设置 —— 见[下文](#-卡片从哪里来)。
 
 **2. 安装插件** —— 在同一目录下执行一次即可，所有项目都会生效：
 
@@ -42,7 +47,8 @@ claude plugin marketplace add ./
 claude plugin install tasktracker@tasktracker
 ```
 
-**3. 重启 Claude Code。** 从此 Claude 写下的每一条待办都会出现在看板上。
+**3. 重启 Claude Code。** 从此你在其中打开 Claude 的每个项目都会出现在看板上，
+它的卡片随 Claude 的工作而变化。
 
 **4. 检查是否正常工作** —— 在 Claude Code 里：
 
@@ -61,6 +67,40 @@ claude plugin install tasktracker@tasktracker
 ```
 
 然后重启 Claude Code。
+
+## 🃏 卡片从哪里来
+
+只有一个设置：`docker-compose.yml` 旁边 `.env` 中的 `TASKTRACKER_CARDS`
+（复制 [`.env.example`](../.env.example)）。修改后重新构建并重启 Claude Code。
+
+```bash
+TASKTRACKER_CARDS=claude    # 默认
+TASKTRACKER_CARDS=prompts
+```
+
+- **`claude`** —— 卡片就是 Claude 自己的任务。每次会话开始时，插件会告诉 Claude：
+  凡是不止一步的工作都拆成任务并及时更新状态；每个任务是一张标着 `TODO` 的卡片，
+  随 Claude 的工作移动。
+- **`prompts`** —— 你发出的每一条请求都是一张标着 `PROMPT` 的卡片：第一行是标题，
+  完整内容是详情。Claude 回答期间它在 **IN PROGRESS**，回答结束后移到 **DONE**。
+  斜杠命令不会生成卡片，Claude 自己的任务也不会显示。
+
+<img src="prompts.png" width="800" alt="prompts 模式：三条请求作为卡片，一张在 IN PROGRESS，两张在 DONE">
+
+## 🧪 开发
+
+```bash
+pip install -e '.[dev]'
+pre-commit install              # 每次提交前运行 ruff 和测试
+pytest --cov                    # 运行测试，附带覆盖率和未覆盖的行
+```
+
+`ruff check` 和 `ruff format` 负责代码风格；配置在 `pyproject.toml` 中。
+GitHub Actions（`.github/workflows/ci.yml`）会在每个 pull request 和每次推送到 `main` 时，
+在 Python 3.11 和 3.12 上运行 ruff 和 `pytest --cov`。
+
+面板没有构建步骤：`src/tasktracker/www` 原样提供，所有第三方库都放在其中。
+版本保持为 **0.0.1** —— 原因以及改动如何进入已安装的插件，见 [`CLAUDE.md`](../CLAUDE.md)。
 
 ### 许可证
 
