@@ -38,6 +38,13 @@ claude plugin install tasktracker@tasktracker
 
 **3. Restart Claude Code.** From then on every todo Claude writes lands on the board.
 
+**4. Check it works** - in Claude Code:
+
+- `/mcp` - `plugin:tasktracker:tasktracker` is listed as connected.
+- `/tasktracker:tasks` - Claude reports this project's queue (empty on a new board).
+- Ask Claude to *"make a todo list of three steps for …"*, then open http://127.0.0.1:8787 -
+  the project is there, with the three cards marked `TODO`.
+
 ### License
 
 [MIT](LICENSE). Montserrat is under the [SIL Open Font License](src/tasktracker/www/fonts/OFL.txt).

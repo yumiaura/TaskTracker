@@ -38,6 +38,13 @@ claude plugin install tasktracker@tasktracker
 
 **3. Перезапусти Claude Code.** С этого момента каждая задача, которую пишет Claude, попадает на доску.
 
+**4. Проверь, что работает** — в Claude Code:
+
+- `/mcp` — в списке есть `plugin:tasktracker:tasktracker` со статусом «подключён».
+- `/tasktracker:tasks` — Claude показывает очередь текущего проекта (на новой доске она пустая).
+- Попроси Claude *«составь todo-список из трёх шагов для …»* и открой http://127.0.0.1:8787 —
+  там появится проект с тремя карточками с пометкой `TODO`.
+
 ### Лицензия
 
 [MIT](../LICENSE). Montserrat — под [SIL Open Font License](../src/tasktracker/www/fonts/OFL.txt).
