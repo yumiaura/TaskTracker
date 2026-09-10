@@ -29,8 +29,17 @@ def connection() -> Iterator[sqlite3.Connection]:
     a loopback bind a few times a minute, SQLite opens in microseconds, and a
     connection held across requests is a connection holding a WAL read snapshot
     while a hook in another process is trying to write.
+
+    Opened with sqlite3's same-thread check off, because FastAPI runs this
+    dependency and the handler that uses it on threads of its pool, and they are
+    not always the same thread. With the check on, every request that landed on
+    two threads failed with "SQLite objects created in a thread can only be used
+    in that same thread" - a 500 on some of the panel's polls and not others,
+    more often the more of them ran at once. The connection is still one
+    request's alone and is used by one thread at a time; it is only created on
+    one and used on the next.
     """
-    conn = store.connect()
+    conn = store.connect(check_same_thread=False)
     try:
         yield conn
     finally:

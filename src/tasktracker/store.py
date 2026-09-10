@@ -131,7 +131,7 @@ class NotFound(Exception):
     """
 
 
-def connect(path: Path | None = None) -> sqlite3.Connection:
+def connect(path: Path | None = None, check_same_thread: bool = True) -> sqlite3.Connection:
     """A connection with the schema in place, ready to write.
 
     WAL and the busy timeout are set on every connection rather than once at
@@ -144,9 +144,15 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     transaction. It is there for the pathological case - a hook, a panel poll
     and an MCP call landing in the same millisecond - where the alternative is
     an immediate "database is locked" and a lost task.
+
+    `check_same_thread` is sqlite3's own guard and stays on unless the caller
+    opens the connection in one thread and uses it in another - see the web
+    API's `connection` for the one caller that does.
     """
     target = path or config.db_path()
-    conn = sqlite3.connect(target, timeout=5.0, isolation_level=None)
+    conn = sqlite3.connect(
+        target, timeout=5.0, isolation_level=None, check_same_thread=check_same_thread
+    )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
