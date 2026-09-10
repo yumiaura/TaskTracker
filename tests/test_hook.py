@@ -424,9 +424,12 @@ def test_a_session_starting_in_a_folder_puts_its_project_on_the_board(home, tmp_
     assert [row["name"] for row in projects] == ["fresh"]
     assert store.tasks(conn, projects[0]["id"]) == []
 
-    # Claude Code adds a SessionStart hook's stdout to Claude's context. The board
-    # has nothing to say there.
-    assert capsys.readouterr().out == ""
+    # Claude Code adds a SessionStart hook's stdout to Claude's context. In
+    # claude mode - the default, with no mode recorded - that is the instruction
+    # to keep a task list, once per start, and nothing else.
+    out = capsys.readouterr().out
+    assert out.count(config.PLAN_INSTRUCTIONS) == 2
+    assert out.replace(config.PLAN_INSTRUCTIONS, "").strip() == ""
 
 
 def test_a_session_start_with_no_folder_registers_nothing(home, conn):
@@ -487,3 +490,12 @@ def test_an_unreadable_stdin_is_reported_and_still_exits_zero(capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "stdin went away" in captured.err
+
+
+def test_in_prompts_mode_a_session_start_says_nothing(home, tmp_path, conn, capsys):
+    root = tmp_path / "quiet"
+    (root / ".git").mkdir(parents=True)
+    store.set_setting(conn, config.CARDS_SETTING, config.CARDS_PROMPTS)
+    run(session_start(root))
+    assert [row["name"] for row in store.projects(conn)] == ["quiet"]
+    assert capsys.readouterr().out == ""

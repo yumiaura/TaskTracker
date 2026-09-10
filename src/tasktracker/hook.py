@@ -35,7 +35,7 @@ import re
 import sys
 from typing import Any
 
-from . import store
+from . import config, store
 
 # The tools whose calls are worth mirroring. hooks.json registers the hook with
 # the same three names, so in normal operation nothing else reaches here - the
@@ -106,18 +106,31 @@ def text_field(section: dict[str, Any], name: str) -> str | None:
 
 
 def register(payload: dict[str, Any]) -> dict[str, Any] | None:
-    """Put the project a session started in on the board, with nothing else.
+    """Put the project a session started in on the board - and in claude mode,
+    tell Claude to keep a task list.
 
     No session id is needed: registering a project touches no card, so there is
-    nothing for two sessions to disagree about. Nothing is printed either - for
-    this event Claude Code adds whatever the hook writes to stdout to Claude's
-    context, and the board has nothing to say to Claude when a session starts.
+    nothing for two sessions to disagree about.
+
+    For this event Claude Code adds whatever the hook writes to stdout to
+    Claude's context, and that is the one place the instruction reliably lands:
+    the same words in the MCP server's instructions were read as advice about
+    that server's tools and ignored. So in claude mode the hook prints it, and in
+    prompts mode - where the cards are the user's prompts - it prints nothing.
+
+    The mode comes from the database: the container writes it there from .env
+    when it starts, and this hook, on the host, never sees the container's
+    environment. No row yet means claude, the default.
     """
     cwd = payload.get("cwd")
     if not isinstance(cwd, str) or not cwd.strip():
         return None
     with store.database() as conn:
-        return store.ensure_project(conn, cwd)
+        project = store.ensure_project(conn, cwd)
+        mode = config.cards_mode(store.setting(conn, config.CARDS_SETTING, config.CARDS_CLAUDE))
+    if mode == config.CARDS_CLAUDE:
+        print(config.PLAN_INSTRUCTIONS)
+    return project
 
 
 def mirror(payload: dict[str, Any]) -> Any:

@@ -17,6 +17,9 @@ services:
     environment:
       TASKTRACKER_HOME: ${HOME}/.claude/tasktracker
       TASKTRACKER_OWNER: ${HOME}
+      # Where the cards come from - set in .env beside this file (see
+      # .env.example), which docker compose reads by itself. `claude` if unset.
+      TASKTRACKER_CARDS: ${TASKTRACKER_CARDS:-claude}
 
     volumes:
       # The home directory, read-only and at the same path as on the host.
