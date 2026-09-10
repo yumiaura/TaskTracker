@@ -18,6 +18,11 @@ TaskTracker 把它按项目镜像到看板上，并为 Claude 提供 MCP 工具�
 
 <img src="projects.png" width="800" alt="项目表：名称、最后更新时间、排队中的任务数">
 
+实际效果 —— 一次真实的 Claude Code 会话，面板从未刷新页面：Claude 规划工作，任务进入
+**QUEUE**（1）；每个任务在 Claude 开始处理之前移到 **IN PROGRESS**（2），完成后移到 **DONE**（3）。
+
+<img src="process.png" width="800" alt="同一会话的三个时刻：三个任务在 QUEUE，第一个在 IN PROGRESS，三个都在 DONE">
+
 ## 🚀 快速开始
 
 **1. 启动看板** —— 面板和 MCP 服务器在同一个容器里：
