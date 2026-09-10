@@ -59,6 +59,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The plugin is version 0.1.1, so `claude plugin update` picks up the
+  `fix/plugin-config` fixes; with the version unchanged it reported "already at
+  the latest version" and kept the old files. The README and its translations
+  gain an **Updating** block, and a project `CLAUDE.md` records the rule that
+  every branch touching the plugin bumps its version (`chore/plugin-version`).
 - The README and its translations install the plugin with the `claude plugin`
   commands run from the checkout (`claude plugin marketplace add ./`) instead
   of `/plugin` with a path to fill in, and say it is installed once for every

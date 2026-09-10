@@ -45,6 +45,16 @@ claude plugin install tasktracker@tasktracker
 - 让 Claude *「为 … 列一个三步的待办清单」*，然后打开 http://127.0.0.1:8787 ——
   会出现这个项目，以及三张标着 `TODO` 的卡片。
 
+**更新** —— 拉取新版本后，在 TaskTracker 目录下执行：
+
+```bash
+docker compose up -d --build
+claude plugin marketplace update tasktracker
+claude plugin update tasktracker@tasktracker
+```
+
+然后重启 Claude Code。
+
 ### 许可证
 
 [MIT](../LICENSE)。Montserrat 采用 [SIL Open Font License](../src/tasktracker/www/fonts/OFL.txt)。

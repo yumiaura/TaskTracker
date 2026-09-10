@@ -45,6 +45,16 @@ claude plugin install tasktracker@tasktracker
 - Ask Claude to *"make a todo list of three steps for …"*, then open http://127.0.0.1:8787 -
   the project is there, with the three cards marked `TODO`.
 
+**Updating** - after pulling changes, from the checkout:
+
+```bash
+docker compose up -d --build
+claude plugin marketplace update tasktracker
+claude plugin update tasktracker@tasktracker
+```
+
+Then restart Claude Code.
+
 ### License
 
 [MIT](LICENSE). Montserrat is under the [SIL Open Font License](src/tasktracker/www/fonts/OFL.txt).
