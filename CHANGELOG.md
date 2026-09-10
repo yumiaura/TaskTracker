@@ -81,6 +81,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The board fills itself again on current Claude Code. The hook listened only
+  to `TodoWrite`, which Claude Code 2.1 no longer calls - it keeps its task list
+  with `TaskCreate` and `TaskUpdate` - so no card was ever mirrored. The hook now
+  listens to all three: `TaskCreate` adds a queued card, `TaskUpdate` moves it
+  between columns, rewrites its text, or removes it on `deleted`, one card per
+  Claude task. Cards carry the Claude task number in a new `external_id`
+  column; there is no migration, and a board created before this starts from a
+  fresh `tasks.db`. Plugin version 0.1.2 (`fix/task-tools-mirror`).
 - The plugin's MCP server is declared in `.claude-plugin/plugin.json` instead of
   a `.mcp.json` at the root of the checkout. Claude Code also read that file as
   the project's own MCP config whenever it ran inside the checkout, and the

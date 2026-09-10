@@ -102,6 +102,7 @@ def test_the_instructions_tell_claude_not_to_double_file_its_todos():
     # The one instruction the server cannot do without: the hook mirrors
     # TodoWrite already, and a session that also files each todo through
     # `task_add` puts every card on the board twice.
+    assert "TaskCreate" in mcp_server.INSTRUCTIONS
     assert "TodoWrite" in mcp_server.INSTRUCTIONS
     assert "task_add" in mcp_server.INSTRUCTIONS
 

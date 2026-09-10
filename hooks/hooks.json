@@ -1,9 +1,9 @@
 {
-  "description": "Mirrors Claude Code's own todo list onto the TaskTracker board, per project and per session.",
+  "description": "Mirrors Claude Code's own task list (TaskCreate, TaskUpdate, TodoWrite) onto the TaskTracker board, per project and per session.",
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "TodoWrite",
+        "matcher": "TaskCreate|TaskUpdate|TodoWrite",
         "hooks": [
           {
             "type": "command",

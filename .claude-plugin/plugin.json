@@ -1,6 +1,6 @@
 {
   "name": "tasktracker",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A task board Claude fills in for itself. Mirrors Claude Code's todo list onto a per-project board that outlives the session, adds MCP tools for queueing work across sessions, and serves a local web panel to read it.",
   "author": {
     "name": "Olya Pimenova"
