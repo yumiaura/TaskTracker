@@ -25,29 +25,21 @@ from typing import Any
 
 from . import config
 
-# The four columns of the board, in the order they are drawn, and the only
+# The three columns of the board, in the order they are drawn, and the only
 # values the `status` column accepts. The CHECK constraint in the schema names
 # them again rather than deriving them: a status that reaches the table through
 # a path that skipped validation is a card that renders in no column at all,
 # and the database is the last place that can still say no.
-#
-# TODO is the backlog: everything new lands there, from Claude and from the
-# panel alike. QUEUE is what is taken next, and a card gets there because
-# somebody moved it there - nothing files into it on its own.
-TODO = "todo"
 QUEUED = "queued"
 IN_PROGRESS = "in_progress"
 DONE = "done"
-STATUSES = (TODO, QUEUED, IN_PROGRESS, DONE)
-
-# Not started yet, whichever of the two waiting columns the card is in.
-NOT_STARTED = (TODO, QUEUED)
+STATUSES = (QUEUED, IN_PROGRESS, DONE)
 
 # Where a task came from, which is the difference between "Claude planned this
 # while working" and "somebody typed it".
 #
 # It matters for exactly one behaviour - the todo mirror is allowed to withdraw
-# a backlog card it created and never a card anybody else did - and it is on the
+# a queued card it created and never a card anybody else did - and it is on the
 # card in the panel because a board that mixes the two without saying so is a
 # board where a card nobody recognises looks like a bug.
 SOURCE_TODO = "todo"
@@ -64,7 +56,7 @@ POSITION_GAP = 1024.0
 # Its spellings, not ours - they go over the hook's stdin and an invented one
 # would silently mirror nothing.
 TODO_STATUS = {
-    "pending": TODO,
+    "pending": QUEUED,
     "in_progress": IN_PROGRESS,
     "completed": DONE,
 }
@@ -77,7 +69,7 @@ TASK_DELETED = "deleted"
 # same cards as the three columns do and in the same order, so switching views
 # does not reshuffle work somebody was halfway through reading.
 COLUMN_ORDER = (
-    "CASE status WHEN 'todo' THEN 0 WHEN 'queued' THEN 1 WHEN 'in_progress' THEN 2 ELSE 3 END"
+    "CASE status WHEN 'queued' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END"
 )
 
 SCHEMA_VERSION = 1
@@ -96,7 +88,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title        TEXT    NOT NULL,
   detail       TEXT    NOT NULL DEFAULT '',
-  status       TEXT    NOT NULL CHECK (status IN ('todo', 'queued', 'in_progress', 'done')),
+  status       TEXT    NOT NULL CHECK (status IN ('queued', 'in_progress', 'done')),
   position     REAL    NOT NULL,
   source       TEXT    NOT NULL DEFAULT 'manual',
   session_id   TEXT,
@@ -379,7 +371,6 @@ def projects(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
         SELECT p.*,
-               COALESCE(SUM(t.status = 'todo'), 0)        AS todo,
                COALESCE(SUM(t.status = 'queued'), 0)      AS queued,
                COALESCE(SUM(t.status = 'in_progress'), 0) AS in_progress,
                COALESCE(SUM(t.status = 'done'
@@ -471,7 +462,7 @@ def create_task(
     project_id: int,
     title: str,
     detail: str = "",
-    status: str = TODO,
+    status: str = QUEUED,
     source: str = SOURCE_MANUAL,
     session_id: str | None = None,
     external_id: str | None = None,
@@ -656,7 +647,7 @@ def mirror_todos(
     card rather than a resurrection of an old one.
 
     An entry that has disappeared from the list is withdrawn only if it is still
-    in TODO, and only if the mirror is what created it. A backlog card that Claude
+    queued, and only if the mirror is what created it. A queued card that Claude
     has dropped from its plan was never started and holding onto it leaves the
     board accumulating work nobody intends to do; a card that reached progress or
     done is a thing that happened, and the board is the only place it is written
@@ -714,10 +705,6 @@ def mirror_todos(
                 continue
             if row["status"] == status:
                 continue
-            # "pending" is Claude saying the task is not started. A card somebody
-            # moved into QUEUE is not started either, and stays where it was put.
-            if status == TODO and row["status"] in NOT_STARTED:
-                continue
             fields: dict[str, Any] = {
                 "status": status,
                 "updated_at": now,
@@ -733,7 +720,7 @@ def mirror_todos(
         gone = [
             row["id"]
             for title, row in existing.items()
-            if title not in live and row["status"] == TODO
+            if title not in live and row["status"] == QUEUED
         ]
         if gone:
             slots = ",".join("?" * len(gone))
@@ -784,7 +771,7 @@ def mirror_task_created(
         project_id,
         title=title,
         detail=detail,
-        status=TODO,
+        status=QUEUED,
         source=SOURCE_TODO,
         session_id=session_id,
         external_id=external_id,
@@ -818,9 +805,6 @@ def mirror_task_updated(
         delete_task(conn, existing["id"])
         return None
     column = TODO_STATUS.get(status) if status else None
-    # As in the TodoWrite mirror: "pending" leaves a card in QUEUE where it is.
-    if column == TODO and existing["status"] in NOT_STARTED:
-        column = None
     if column is None and title is None and detail is None:
         return existing
     return update_task(conn, existing["id"], title=title, detail=detail, status=column)

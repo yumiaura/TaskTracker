@@ -34,7 +34,6 @@
           <div>
             <label class="form-label mb-1" for="tt-task-status">COLUMN</label>
             <select id="tt-task-status" v-model="status" class="form-select form-select-sm">
-              <option value="todo">TODO</option>
               <option value="queued">QUEUE</option>
               <option value="in_progress">IN PROGRESS</option>
               <option value="done">DONE</option>
@@ -80,7 +79,7 @@ module.exports = {
       taskId: null,
       title: '',
       detail: '',
-      status: 'todo',
+      status: 'queued',
       saving: false,
     };
   },
@@ -123,7 +122,7 @@ module.exports = {
       this.taskId = task ? task.id : null;
       this.title = task ? task.title : '';
       this.detail = task ? (task.detail || '') : '';
-      this.status = task ? task.status : 'todo';
+      this.status = task ? task.status : 'queued';
       this.saving = false;
       if (this.modal) this.modal.show();
     },

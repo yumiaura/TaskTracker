@@ -68,12 +68,12 @@ def test_moving_a_card_puts_it_where_it_was_dropped(conn, project):
     titles = ["a", "b", "c"]
     cards = [store.create_task(conn, project["id"], title) for title in titles]
 
-    store.move_task(conn, cards[2]["id"], store.TODO, 0)
+    store.move_task(conn, cards[2]["id"], store.QUEUED, 0)
     assert [row["title"] for row in store.tasks(conn, project["id"])] == ["c", "a", "b"]
 
     # Past the end is the end, not an error: a drop below the last card is a
     # drop at the bottom, and that is what the pointer was over.
-    store.move_task(conn, cards[2]["id"], store.TODO, 99)
+    store.move_task(conn, cards[2]["id"], store.QUEUED, 99)
     assert [row["title"] for row in store.tasks(conn, project["id"])] == ["a", "b", "c"]
 
 
@@ -107,8 +107,7 @@ def test_an_unreadable_hide_setting_falls_back_rather_than_raising(conn):
 
 
 def test_the_projects_screen_counts_what_the_board_would_draw(conn, project):
-    store.create_task(conn, project["id"], "backlog one")
-    store.create_task(conn, project["id"], "picked next", status=store.QUEUED)
+    store.create_task(conn, project["id"], "queued one")
     store.create_task(conn, project["id"], "running", status=store.IN_PROGRESS)
     finished = store.create_task(conn, project["id"], "ancient", status=store.DONE)
     conn.execute(
@@ -118,10 +117,10 @@ def test_the_projects_screen_counts_what_the_board_would_draw(conn, project):
     store.set_setting(conn, "done_hide_days", "7")
 
     row = store.projects(conn)[0]
-    assert (row["todo"], row["queued"], row["in_progress"], row["done"]) == (1, 1, 1, 0)
+    assert (row["queued"], row["in_progress"], row["done"]) == (1, 1, 0)
 
 
-def test_the_mirror_adds_updates_and_withdraws_only_its_own_backlog_cards(conn, project):
+def test_the_mirror_adds_updates_and_withdraws_only_its_own_queued_cards(conn, project):
     typed = store.create_task(conn, project["id"], "typed by hand")
 
     first = store.mirror_todos(
@@ -136,9 +135,9 @@ def test_the_mirror_adds_updates_and_withdraws_only_its_own_backlog_cards(conn, 
     )
     assert first == {"added": 3, "updated": 0, "withdrawn": 0}
 
-    # The plan changed: the finished and the running entries stay, the backlog
+    # The plan changed: the finished and the running entries stay, the queued
     # one Claude dropped is withdrawn, and the card a person typed is untouched
-    # even though it is in the backlog too.
+    # even though it is queued too.
     second = store.mirror_todos(
         conn,
         project["id"],
@@ -152,7 +151,7 @@ def test_the_mirror_adds_updates_and_withdraws_only_its_own_backlog_cards(conn, 
 
     titles = {row["title"]: row["status"] for row in store.tasks(conn, project["id"])}
     assert titles == {
-        "typed by hand": store.TODO,
+        "typed by hand": store.QUEUED,
         "read the code": store.DONE,
         "write the patch": store.DONE,
     }

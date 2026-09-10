@@ -121,7 +121,6 @@
      happening right now". Done is green. Each is used for the column's heading
      rule and for the stripe down the left edge of its cards, which is what lets
      the table view report a status without a column of coloured words. */
-  --tt-col-todo:        #8a6fc4;
   --tt-col-queued:      #7d8a91;
   --tt-col-progress:    #3b89ca;
   --tt-col-done:        #009259;
@@ -196,7 +195,6 @@
   --tt-row-hover:     rgba(255, 255, 255, .07);
   --tt-row-active:    rgba(255, 255, 255, .13);
 
-  --tt-col-todo:        #a58de0;
   --tt-col-queued:      #8794a0;
   --tt-col-progress:    #5ba3dd;
   --tt-col-done:        #35b481;
@@ -459,16 +457,11 @@ textarea:focus, input.form-control:focus, .form-control:focus, .form-select:focu
    reads as a drop target that is not there. */
 .tt-board {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: start;
 }
-/* Four columns need more width than three did. Two by two before one by one,
-   so a laptop screen still shows the waiting columns side by side. */
-@media (max-width: 1200px) {
-  .tt-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .tt-board { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -495,7 +488,6 @@ textarea:focus, input.form-control:focus, .form-control:focus, .form-select:focu
      across a screen whose actual content is the cards. */
   border-bottom: 2px solid var(--tt-col-queued);
 }
-.tt-column-todo     .tt-column-head { border-bottom-color: var(--tt-col-todo); }
 .tt-column-progress .tt-column-head { border-bottom-color: var(--tt-col-progress); }
 .tt-column-done     .tt-column-head { border-bottom-color: var(--tt-col-done); }
 .tt-column-count {
@@ -531,7 +523,6 @@ textarea:focus, input.form-control:focus, .form-control:focus, .form-select:focu
   cursor: grab;
 }
 .tt-task:hover { border-color: var(--tt-primary-light); }
-.tt-column-todo     .tt-task { border-left-color: var(--tt-col-todo); }
 .tt-column-progress .tt-task { border-left-color: var(--tt-col-progress); }
 .tt-column-done     .tt-task { border-left-color: var(--tt-col-done); }
 /* The card under the pointer while it is being carried. Not `display: none` -
