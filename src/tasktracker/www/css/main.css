@@ -520,7 +520,8 @@ textarea:focus, input.form-control:focus, .form-control:focus, .form-select:focu
   border-left: 3px solid var(--tt-col-queued);
   border-radius: 3px;
   padding: 6px 8px 6px 9px;
-  cursor: grab;
+  /* A click opens the task; a drag still moves it. */
+  cursor: pointer;
 }
 .tt-task:hover { border-color: var(--tt-primary-light); }
 .tt-column-progress .tt-task { border-left-color: var(--tt-col-progress); }

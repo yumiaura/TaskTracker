@@ -75,6 +75,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A click on a task - a card on the board, a row in the table view - opens its
+  dialog, where the title, the detail and the status are edited and a DELETE
+  button removes it after the same confirmation as the trash icon. The table
+  view shows the status as a word; it is changed in the dialog only
+  (`feat/task-modal`).
 - The first release: the plugin, the package and `__version__` are all 0.0.1,
   and stay there - changes go into 0.0.1 (`chore/release-0.0.1`,
   `docs/version-0.0.1`).
