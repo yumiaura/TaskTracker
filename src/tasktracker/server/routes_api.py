@@ -51,7 +51,7 @@ def fail(status: int, message: str) -> HTTPException:
 class TaskCreate(BaseModel):
     title: str
     detail: str = ""
-    status: str = store.QUEUED
+    status: str = store.TODO
 
 
 class TaskPatch(BaseModel):

@@ -10,6 +10,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A fourth column. The board, the table view and the task dialog now use four
+  states - TODO, QUEUE, IN PROGRESS, DONE - and the projects table counts all
+  four. TODO is the backlog: every new task lands there, whether Claude created
+  it, an MCP call filed it or it was typed in the panel. QUEUE is what was
+  picked to be done next; a card gets there only by being moved. Claude's
+  "pending" never pulls a card back out of QUEUE, and the TodoWrite mirror
+  withdraws only cards still in TODO. `tasks_queued` returns `todo` alongside
+  `queued` and `in_progress`. The schema's status check names `todo`, so the
+  board starts from a fresh `tasks.db` (`feat/todo-column`).
 - A project appears on the board as soon as a Claude Code session starts (or
   resumes) in it, with empty columns, instead of only once Claude has created a
   task there. The plugin's hook also runs on `SessionStart`, where it registers

@@ -45,9 +45,12 @@ re-file the tasks you are already tracking with TaskCreate (or TodoWrite).
 Pass `project` on every call: the absolute path of the directory you are
 working in. The board may be running somewhere that cannot see where you are.
 
+The board has four columns: `todo` (the backlog, where everything new lands),
+`queued` (what the user picked to do next), `in_progress` and `done`.
+
 Use these tools for what the todo list cannot hold:
   * `tasks_queued` at the start of work on a project, to pick up what a previous
-    session left behind.
+    session left behind. Take `queued` first - the user put those there.
   * `task_add` for work that is worth doing but is not part of what you are
     doing now - a follow-up, something noticed in passing, something the user
     said to do later.
@@ -149,18 +152,22 @@ def tasks_queued(project: str = "") -> dict[str, Any]:
 
     Call this when you start work on a project: it is the record of what earlier
     sessions left behind, which nothing in the current session's context knows
-    about. Finished tasks are not listed - ask `tasks_all` for those.
+    about. `queued` is what the user picked to be done next; `todo` is the
+    backlog. Finished tasks are not listed - ask `tasks_all` for those.
 
     project: the absolute path of the directory you are working in. A project
     name or id also works.
     """
     with store.database() as conn:
         found = resolve(conn, project)
-        rows = store.tasks(conn, found["id"], statuses=(store.QUEUED, store.IN_PROGRESS))
+        rows = store.tasks(
+            conn, found["id"], statuses=(store.TODO, store.QUEUED, store.IN_PROGRESS)
+        )
         return {
             "project": found["name"],
-            "queued": [brief(row) for row in rows if row["status"] == store.QUEUED],
             "in_progress": [brief(row) for row in rows if row["status"] == store.IN_PROGRESS],
+            "queued": [brief(row) for row in rows if row["status"] == store.QUEUED],
+            "todo": [brief(row) for row in rows if row["status"] == store.TODO],
         }
 
 
@@ -193,7 +200,7 @@ def task_add(
 
     title: one line. Anything longer belongs in `detail`.
     project: the absolute path of the directory you are working in.
-    start: file it as already in progress rather than as queued.
+    start: file it as already in progress rather than into the backlog (`todo`).
     """
     with store.database() as conn:
         found = resolve(conn, project)
@@ -202,7 +209,7 @@ def task_add(
             found["id"],
             title=title,
             detail=detail,
-            status=store.IN_PROGRESS if start else store.QUEUED,
+            status=store.IN_PROGRESS if start else store.TODO,
             source=store.SOURCE_MCP,
         )
         return {"project": found["name"], "task": brief(task)}
@@ -232,7 +239,7 @@ def task_update(
 ) -> dict[str, Any]:
     """Edit a task. Every field is optional; an empty one is left as it was.
 
-    status: queued, in_progress or done.
+    status: todo, queued, in_progress or done.
     """
     with store.database() as conn:
         return {
@@ -274,6 +281,7 @@ def projects_list() -> dict[str, Any]:
                     "id": row["id"],
                     "name": row["name"],
                     "path": row["path"],
+                    "todo": row["todo"],
                     "queued": row["queued"],
                     "in_progress": row["in_progress"],
                 }

@@ -182,7 +182,7 @@ const store = new Vuex.Store({
     // board and the settings screen cannot disagree about how long a finished
     // card is drawn for.
     settings: { done_hide_days: null },
-    /* Every project with its three counts, and the queued total the bar
+    /* Every project with its four counts, and the queued total the bar
        reports.
 
        Held in the store and polled by the header rather than by the projects
