@@ -68,9 +68,7 @@ TASK_DELETED = "deleted"
 # The board read left to right, as one SQL sort key. The table view lists the
 # same cards as the three columns do and in the same order, so switching views
 # does not reshuffle work somebody was halfway through reading.
-COLUMN_ORDER = (
-    "CASE status WHEN 'queued' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END"
-)
+COLUMN_ORDER = "CASE status WHEN 'queued' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END"
 
 SCHEMA_VERSION = 1
 
@@ -540,9 +538,7 @@ def update_task(
         if "status" in fields:
             fields["position"] = next_position(conn, current["project_id"], status)
         assignments = ", ".join(f"{name} = ?" for name in fields)
-        conn.execute(
-            f"UPDATE tasks SET {assignments} WHERE id = ?", (*fields.values(), task_id)
-        )
+        conn.execute(f"UPDATE tasks SET {assignments} WHERE id = ?", (*fields.values(), task_id))
         touch_project(conn, current["project_id"], now)
     return task(conn, task_id)
 

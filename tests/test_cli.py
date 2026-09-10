@@ -48,9 +48,7 @@ def test_serve_hands_the_app_and_its_arguments_to_uvicorn(home, monkeypatch):
 
     started = {}
     opened = []
-    monkeypatch.setattr(
-        uvicorn, "run", lambda app, **options: started.update(app=app, **options)
-    )
+    monkeypatch.setattr(uvicorn, "run", lambda app, **options: started.update(app=app, **options))
     monkeypatch.setattr(cli, "open_when_ready", lambda host, port: opened.append((host, port)))
 
     assert cli.main(["serve", "--port", "9001", "--log-level", "warning", "--open"]) == 0

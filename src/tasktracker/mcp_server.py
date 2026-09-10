@@ -98,9 +98,9 @@ def default_root() -> str:
     if cwd_is_project:
         return os.getcwd()
     raise MissingProject(
-        "No project given. Pass `project`: the absolute path of the directory "
-        "you are working in."
+        "No project given. Pass `project`: the absolute path of the directory you are working in."
     )
+
 
 # What a task looks like on the way back to Claude.
 #
