@@ -1,6 +1,6 @@
 ---
 description: Show this project's TaskTracker board - what is queued and what is in flight.
-allowed-tools: mcp__tasktracker__tasks_queued, mcp__tasktracker__projects_list
+allowed-tools: mcp__plugin_tasktracker_tasktracker__tasks_queued, mcp__plugin_tasktracker_tasktracker__projects_list
 ---
 
 Read this project's board and report it.

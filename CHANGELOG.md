@@ -76,6 +76,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The plugin's MCP server is declared in `.claude-plugin/plugin.json` instead of
+  a `.mcp.json` at the root of the checkout. Claude Code also read that file as
+  the project's own MCP config whenever it ran inside the checkout, and the
+  plugin's format failed that parser: `claude mcp list` reported
+  `mcpServers: Invalid input` (`fix/plugin-config`).
+- `/tasktracker:tasks` pre-approves its tools as
+  `mcp__plugin_tasktracker_tasktracker__…`, the names Claude Code gives a
+  plugin's MCP tools. The old `mcp__tasktracker__…` names matched nothing, so
+  the command asked for permission on every run (`fix/plugin-config`).
 - `mcp` is bounded `>=1.29,<2`. The unbounded range installed mcp 2.x, which
   renamed FastMCP, and the server failed at import on any fresh install
   (`feat/docker`).
