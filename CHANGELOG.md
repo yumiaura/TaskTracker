@@ -8,6 +8,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The README and its translations gain a fourth step, checking the plugin from
+  inside Claude Code: `/mcp` shows the server connected, `/tasktracker:tasks`
+  reads the queue, and a todo list Claude writes appears on the panel
+  (`docs/plugin-check`).
 - Docker: a `Dockerfile` and `docker-compose.yml` that run the panel, its REST
   API and the MCP server in one container on `127.0.0.1:8787`. The board's
   database is shared with the host through a bind mount, the home directory is

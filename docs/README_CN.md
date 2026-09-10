@@ -38,6 +38,13 @@ claude plugin install tasktracker@tasktracker
 
 **3. 重启 Claude Code。** 从此 Claude 写下的每一条待办都会出现在看板上。
 
+**4. 检查是否正常工作** —— 在 Claude Code 里：
+
+- `/mcp` —— 列表中有 `plugin:tasktracker:tasktracker`，状态为已连接。
+- `/tasktracker:tasks` —— Claude 会报告当前项目的队列（新看板上为空）。
+- 让 Claude *「为 … 列一个三步的待办清单」*，然后打开 http://127.0.0.1:8787 ——
+  会出现这个项目，以及三张标着 `TODO` 的卡片。
+
 ### 许可证
 
 [MIT](../LICENSE)。Montserrat 采用 [SIL Open Font License](../src/tasktracker/www/fonts/OFL.txt)。
