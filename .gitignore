@@ -12,6 +12,12 @@ venv/
 .ruff_cache/
 .pytest_cache/
 
+# What `pytest --cov` leaves behind.
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # The tracker's own data, if anybody points TASKTRACKER_HOME at the checkout
 # while developing. The real store lives under ~/.claude/tasktracker and is
 # never inside this tree, but a stray tasks.db committed once is a stray
