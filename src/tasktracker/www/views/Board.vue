@@ -110,7 +110,6 @@
             <td>
               <select class="form-select form-select-sm"
                       :value="task.status" @change="pick(task, $event.target.value)">
-                <option value="todo">TODO</option>
                 <option value="queued">QUEUE</option>
                 <option value="in_progress">IN PROGRESS</option>
                 <option value="done">DONE</option>
@@ -148,18 +147,14 @@
    is reading it.
 */
 
-/* The four columns, left to right, with what an empty one says.
-
-   TODO is the backlog, where everything new lands; QUEUE is what was picked to
-   be done next, and a card only gets there by being moved.
+/* The three columns, left to right, with what an empty one says.
 
    The empty sentences are not "No tasks". Each column is empty for a different
    reason and only one of them is worth acting on, so each says its own thing -
    an empty queue is the good outcome, an empty done column on a busy board is
    just early in the week. */
 var COLUMNS = [
-  { status: 'todo', title: 'TODO', klass: 'tt-column-todo', empty: 'The backlog is empty.' },
-  { status: 'queued', title: 'QUEUE', klass: 'tt-column-queued', empty: 'Nothing picked for next.' },
+  { status: 'queued', title: 'QUEUE', klass: 'tt-column-queued', empty: 'Nothing waiting.' },
   {
     status: 'in_progress',
     title: 'IN PROGRESS',
@@ -208,7 +203,7 @@ module.exports = {
        it in a computed rather than three filters in the template means the list
        is walked once per change instead of three times per render. */
     grouped: function () {
-      var groups = { todo: [], queued: [], in_progress: [], done: [] };
+      var groups = { queued: [], in_progress: [], done: [] };
       this.tasks.forEach(function (task) {
         if (groups[task.status]) groups[task.status].push(task);
       });

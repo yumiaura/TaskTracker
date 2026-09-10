@@ -33,14 +33,12 @@ def repo(tmp_path, monkeypatch, home):
 def test_a_tool_files_against_the_project_it_is_running_in(repo):
     added = mcp_server.task_add("Rename the widget")
     assert added["project"] == "widget"
-    # Filed into the backlog, like everything new.
-    assert added["task"]["status"] == "todo"
+    assert added["task"]["status"] == "queued"
     assert added["task"]["source"] == "mcp"
 
-    waiting = mcp_server.tasks_queued()
-    assert [task["title"] for task in waiting["todo"]] == ["Rename the widget"]
-    assert waiting["queued"] == []
-    assert waiting["in_progress"] == []
+    queued = mcp_server.tasks_queued()
+    assert [task["title"] for task in queued["queued"]] == ["Rename the widget"]
+    assert queued["in_progress"] == []
 
 
 def test_the_brief_shape_leaves_out_the_bookkeeping(repo):
@@ -58,8 +56,7 @@ def test_starting_and_finishing_a_task(repo):
     assert mcp_server.task_done(task["id"])["task"]["status"] == "done"
 
     # Finished work is out of the queue but still on the board.
-    waiting = mcp_server.tasks_queued()
-    assert waiting["todo"] == [] and waiting["queued"] == []
+    assert mcp_server.tasks_queued()["queued"] == []
     assert [row["title"] for row in mcp_server.tasks_all()["tasks"]] == ["Ship it"]
 
 

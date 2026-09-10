@@ -64,7 +64,7 @@ def todos_from(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
 
     None means "this payload has no todo list", which is not the same as an
     empty list: an empty list is Claude clearing its plan, and clearing the plan
-    withdraws the backlog cards that went with it.
+    withdraws the queued cards that went with it.
     """
     for field in ("tool_input", "tool_response"):
         section = payload.get(field)
