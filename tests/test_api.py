@@ -163,3 +163,55 @@ def test_the_panel_s_concurrent_polls_all_answer_200(client, board):
     with ThreadPoolExecutor(max_workers=8) as pool:
         codes = list(pool.map(lambda path: client.get(path).status_code, paths))
     assert set(codes) == {200}
+
+
+# ---------------------------------------------------------------------------
+# Failures, each in the one envelope the panel reads
+# ---------------------------------------------------------------------------
+
+
+def error_of(answer):
+    return answer.json()["error"]["message"]
+
+
+def test_what_is_not_there_is_404(client, board):
+    assert client.delete("/api/projects/999").status_code == 404
+    assert client.post("/api/projects/999/tasks", json={"title": "x"}).status_code == 404
+    missing = client.patch("/api/tasks/999", json={"title": "x"})
+    assert missing.status_code == 404
+    assert "999" in error_of(missing)
+
+
+def test_what_cannot_be_written_is_400(client, board):
+    blank = client.post(f"/api/projects/{board['id']}/tasks", json={"title": "   "})
+    assert blank.status_code == 400
+    assert error_of(blank) == "a task needs a title"
+
+    card = client.post(f"/api/projects/{board['id']}/tasks", json={"title": "real"}).json()
+    wrong = client.patch(f"/api/tasks/{card['id']}", json={"status": "someday"})
+    assert wrong.status_code == 400
+    assert "someday" in error_of(wrong)
+
+
+def test_a_failure_detail_reads_as_one_sentence():
+    from tasktracker.server.app import sentence
+
+    assert sentence("plain") == "plain"
+    assert sentence({"error": {"message": "wrapped"}}) == "wrapped"
+    assert sentence({"msg": "pydantic"}) == "pydantic"
+    assert sentence([
+        {"loc": ["body", "done_hide_days"], "msg": "too small"},
+        {"loc": ["body"], "type": "missing"},
+        "not a dict",
+    ]) == "done_hide_days: too small; missing; not a dict"
+    assert sentence(42) == "42"
+
+
+def test_a_missing_panel_directory_leaves_the_api_up(tmp_path, caplog):
+    from fastapi import FastAPI
+
+    from tasktracker.server import webui
+
+    app = FastAPI()
+    assert webui.mount(app, directory=tmp_path / "nowhere") is False
+    assert "is missing" in caplog.text
