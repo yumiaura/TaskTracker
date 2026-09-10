@@ -173,5 +173,7 @@ def test_the_plugin_manifest_names_the_files_it_ships():
     assert "todo-mirror.py" in command
     assert (PLUGIN_ROOT / "hooks" / "todo-mirror.py").is_file()
 
+    # The plugin reaches the MCP tools in the board's container, over HTTP, at
+    # the path the web app mounts them on.
     servers = json.loads((PLUGIN_ROOT / ".mcp.json").read_text())
-    assert servers["tasktracker"]["args"] == ["-m", "tasktracker.cli", "mcp"]
+    assert servers["tasktracker"] == {"type": "http", "url": "http://127.0.0.1:8787/mcp"}

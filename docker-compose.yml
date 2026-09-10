@@ -1,0 +1,40 @@
+# The TaskTracker board: `docker compose up -d`, then http://127.0.0.1:8787.
+#
+# One container serves the panel, its REST API and, at /mcp, the MCP server the
+# plugin connects to. The plugin's hook still runs on the host - it is what
+# Claude Code executes after every TodoWrite - and writes into the same
+# database through the mount below.
+services:
+  tasktracker:
+    build: .
+    image: tasktracker:local
+
+    # 127.0.0.1 and nowhere else. The panel has no authentication, and the MCP
+    # endpoint will read and write the board for anyone who can reach it.
+    ports:
+      - "127.0.0.1:8787:8787"
+
+    environment:
+      TASKTRACKER_HOME: ${HOME}/.claude/tasktracker
+      TASKTRACKER_OWNER: ${HOME}
+
+    volumes:
+      # The home directory, read-only and at the same path as on the host.
+      # Claude passes the MCP tools the path it is working in; to file that
+      # against the same project the hook does, the server walks up from it to
+      # the repository root, and it can only do that if the path exists here.
+      # Mounted at the same path so the paths on the board are the host's.
+      - ${HOME}:${HOME}:ro
+      # The board itself, writable - the one file the hook, the panel and the
+      # MCP tools all share.
+      - ${HOME}/.claude/tasktracker:${HOME}/.claude/tasktracker
+
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3

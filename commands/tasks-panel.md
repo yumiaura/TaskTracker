@@ -1,21 +1,16 @@
 ---
 description: Open the TaskTracker web panel in a browser.
-allowed-tools: Bash(tasktracker serve:*), Bash(python3 -m tasktracker.cli serve:*), Bash(curl:*)
+allowed-tools: Bash(curl:*), Bash(xdg-open:*), Bash(open:*)
 ---
 
 Open the board's web panel.
 
-1. Check whether it is already listening:
+1. Check whether it is up:
    `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/api/health`
-   A `200` means it is already up - just give the user the URL
-   (http://127.0.0.1:8787/) and stop.
-2. Otherwise start it in the background and open it:
-   `tasktracker serve --open`
-   If that command is not on PATH, use
-   `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/src" python3 -m tasktracker.cli serve --open`
-   which needs fastapi and uvicorn installed in that interpreter.
-3. Tell the user the URL. Do not wait on the process - it stays in the
-   foreground of the shell you started it in and serves until it is stopped.
-
-The panel binds to 127.0.0.1 only and has no authentication, which is the whole
-reason it binds there. Do not offer to change the host.
+2. A `200` means it is running. Open http://127.0.0.1:8787/ in the browser with
+   `xdg-open` (Linux) or `open` (macOS), and give the user the URL.
+3. Anything else means the board's container is not running. Tell the user to
+   run `docker compose up -d` in their TaskTracker checkout, then open
+   http://127.0.0.1:8787/. Do not start it yourself: the container is built from
+   that checkout, and a second copy started from somewhere else would fight the
+   first one for the port.

@@ -1,0 +1,10 @@
+# An allowlist: the image needs the package and the files its build reads, and
+# nothing else from the checkout - not .git, not the tests, not the screenshots.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!src
+!docker
+**/__pycache__
+**/*.pyc
