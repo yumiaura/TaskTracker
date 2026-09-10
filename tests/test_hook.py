@@ -174,6 +174,46 @@ def test_the_plugin_manifest_names_the_files_it_ships():
     assert (PLUGIN_ROOT / "hooks" / "todo-mirror.py").is_file()
 
     # The plugin reaches the MCP tools in the board's container, over HTTP, at
-    # the path the web app mounts them on.
-    servers = json.loads((PLUGIN_ROOT / ".mcp.json").read_text())
-    assert servers["tasktracker"] == {"type": "http", "url": "http://127.0.0.1:8787/mcp"}
+    # the path the web app mounts them on. Declared in the manifest itself: a
+    # .mcp.json at the root of the checkout is ALSO read by Claude Code as the
+    # project's own MCP config whenever it runs in this directory, and the
+    # plugin's format - server names at the top level - fails that parser with
+    # "mcpServers: Invalid input" in `claude mcp list`.
+    assert manifest["mcpServers"]["tasktracker"] == {
+        "type": "http",
+        "url": "http://127.0.0.1:8787/mcp",
+    }
+    assert not (PLUGIN_ROOT / ".mcp.json").exists()
+
+
+# How Claude Code names a tool served by a plugin's MCP server:
+# mcp__plugin_<plugin>_<server>__<tool>. A command's `allowed-tools` has to use
+# that exact name, or the pre-approval silently matches nothing and the command
+# stops to ask for permission on every run.
+PLUGIN_TOOL_PREFIX = "mcp__plugin_tasktracker_tasktracker__"
+
+
+def test_the_commands_pre_approve_tools_by_the_names_claude_code_gives_them():
+    import asyncio
+    import re
+
+    from tasktracker import mcp_server
+
+    served = {tool.name for tool in asyncio.run(mcp_server.server.list_tools())}
+    named = []
+    for command in (PLUGIN_ROOT / "commands").glob("*.md"):
+        header = command.read_text().split("---")[1]
+        line = re.search(r"^allowed-tools:(.*)$", header, re.MULTILINE)
+        if line:
+            named += [
+                (command.name, item.strip())
+                for item in line.group(1).split(",")
+                if item.strip().startswith("mcp__")
+            ]
+
+    # At least /tasktracker:tasks names its tools; a test that finds none would
+    # pass without having checked anything.
+    assert named
+    for command, tool in named:
+        assert tool.startswith(PLUGIN_TOOL_PREFIX), f"{command}: {tool}"
+        assert tool[len(PLUGIN_TOOL_PREFIX):] in served, f"{command}: {tool} is not served"

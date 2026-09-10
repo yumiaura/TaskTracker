@@ -61,7 +61,8 @@ def sentence(detail: object) -> str:
 
 
 # Where the plugin reaches the MCP tools. The same path is written into the
-# plugin's .mcp.json, and the two have to agree.
+# `mcpServers` entry of the plugin's .claude-plugin/plugin.json, and the two
+# have to agree.
 MCP_PATH = "/mcp"
 
 

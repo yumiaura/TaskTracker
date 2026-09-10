@@ -29,7 +29,8 @@ def test_the_port_is_published_on_loopback_only():
 
 
 def test_the_plugin_points_at_the_port_and_path_the_container_serves():
-    servers = json.loads((ROOT / ".mcp.json").read_text())
+    manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
+    servers = manifest["mcpServers"]
     assert servers["tasktracker"]["url"] == f"http://127.0.0.1:8787{MCP_PATH}"
     assert "--port 8787" in ENTRYPOINT
 
