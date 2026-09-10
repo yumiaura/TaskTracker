@@ -29,11 +29,11 @@ docker compose up -d
 
 The panel is at http://127.0.0.1:8787.
 
-**2. Install the plugin** - in Claude Code:
+**2. Install the plugin** - once, from the same directory; it works in every project:
 
-```
-/plugin marketplace add /path/to/TaskTracker
-/plugin install tasktracker@tasktracker
+```bash
+claude plugin marketplace add ./
+claude plugin install tasktracker@tasktracker
 ```
 
 **3. Restart Claude Code.** From then on every todo Claude writes lands on the board.

@@ -29,11 +29,11 @@ docker compose up -d
 
 Панель откроется на http://127.0.0.1:8787.
 
-**2. Установи плагин** — в Claude Code:
+**2. Установи плагин** — один раз, из той же папки; он работает во всех проектах:
 
-```
-/plugin marketplace add /путь/к/TaskTracker
-/plugin install tasktracker@tasktracker
+```bash
+claude plugin marketplace add ./
+claude plugin install tasktracker@tasktracker
 ```
 
 **3. Перезапусти Claude Code.** С этого момента каждая задача, которую пишет Claude, попадает на доску.
