@@ -48,6 +48,10 @@ TOOLS = (TODO_WRITE, TASK_CREATE, TASK_UPDATE)
 # The event Claude Code sends when a session starts, resumes, or is cleared.
 SESSION_START = "SessionStart"
 
+# The two events prompts mode makes cards from: a prompt sent, an answer ended.
+PROMPT_SUBMIT = "UserPromptSubmit"
+STOP = "Stop"
+
 # How TaskCreate words its result when it comes back as text rather than as an
 # object: "Task #3 created successfully: ...".
 TASK_NUMBER = re.compile(r"#(\d+)")
@@ -133,13 +137,57 @@ def register(payload: dict[str, Any]) -> dict[str, Any] | None:
     return project
 
 
+def card_mode() -> str:
+    """The mode the container last recorded from .env; claude if none yet."""
+    with store.database() as conn:
+        return config.cards_mode(store.setting(conn, config.CARDS_SETTING, config.CARDS_CLAUDE))
+
+
+def prompt_event(payload: dict[str, Any]) -> Any:
+    """Prompts mode: a card per prompt, done when Claude stops answering.
+
+    Prints nothing. For UserPromptSubmit, as for SessionStart, Claude Code adds
+    the hook's stdout to Claude's context, and the board has nothing to add to
+    somebody's prompt.
+
+    A prompt that is a slash command makes no card: `/clear` or a plugin's
+    command is not a piece of work, and a board of them is noise.
+    """
+    session_id = str(payload.get("session_id") or "").strip()
+    cwd = payload.get("cwd")
+    if not session_id or not isinstance(cwd, str) or not cwd.strip():
+        return None
+    with store.database() as conn:
+        project = store.ensure_project(conn, cwd)
+        if payload.get("hook_event_name") == STOP:
+            return store.close_prompt_cards(conn, project["id"], session_id)
+        prompt = payload.get("prompt")
+        if not isinstance(prompt, str) or prompt.lstrip().startswith("/"):
+            return None
+        return store.open_prompt_card(conn, project["id"], session_id, prompt)
+
+
 def mirror(payload: dict[str, Any]) -> Any:
-    """Apply one hook payload to the board: a session start, or one tool call."""
-    if payload.get("hook_event_name") == SESSION_START:
+    """Apply one hook payload to the board.
+
+    A session start registers the project whatever the mode. Beyond that the
+    mode in .env decides which events make cards: in prompts mode, the prompts
+    and the ends of Claude's answers; in claude mode, Claude's own task tools.
+    Each ignores the other's events, so the two never mix on one board.
+    """
+    event = payload.get("hook_event_name")
+    if event == SESSION_START:
         return register(payload)
+
+    if event in (PROMPT_SUBMIT, STOP):
+        if card_mode() != config.CARDS_PROMPTS:
+            return None
+        return prompt_event(payload)
 
     tool = payload.get("tool_name")
     if tool not in TOOLS:
+        return None
+    if card_mode() != config.CARDS_CLAUDE:
         return None
 
     # The session is part of every card's identity. Without one, two sessions in

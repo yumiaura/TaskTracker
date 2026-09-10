@@ -45,6 +45,8 @@ STATUSES = (QUEUED, IN_PROGRESS, DONE)
 SOURCE_TODO = "todo"
 SOURCE_MCP = "mcp"
 SOURCE_MANUAL = "manual"
+# A prompt the user sent to Claude, when .env chooses prompts mode.
+SOURCE_PROMPT = "prompt"
 
 # How far apart consecutive cards sit. Positions are floats and a card dropped
 # between two others takes their midpoint, so a wide gap is what keeps that
@@ -800,3 +802,57 @@ def mirror_task_updated(
     if column is None and title is None and detail is None:
         return existing
     return update_task(conn, existing["id"], title=title, detail=detail, status=column)
+
+
+# --------------------------------------------------------------------------
+# The prompt cards (prompts mode)
+# --------------------------------------------------------------------------
+
+
+def prompt_title(prompt: str) -> str:
+    """A prompt's first line with words on it, as a card title."""
+    for line in str(prompt or "").splitlines():
+        if line.strip():
+            return config.clean_title(line)
+    return ""
+
+
+def close_prompt_cards(conn: sqlite3.Connection, project_id: int, session_id: str) -> int:
+    """Move this session's prompt cards still in progress to DONE.
+
+    Called when Claude stops answering, and again when the next prompt arrives:
+    an answer the user interrupts fires no Stop, and without the second call its
+    card would sit in IN PROGRESS for good.
+    """
+    rows = conn.execute(
+        "SELECT id FROM tasks WHERE project_id = ? AND session_id = ? AND source = ? "
+        "AND status = ?",
+        (project_id, session_id, SOURCE_PROMPT, IN_PROGRESS),
+    ).fetchall()
+    for row in rows:
+        update_task(conn, row["id"], status=DONE)
+    return len(rows)
+
+
+def open_prompt_card(
+    conn: sqlite3.Connection, project_id: int, session_id: str, prompt: str
+) -> dict[str, Any] | None:
+    """A card for a prompt just sent to Claude, straight into IN PROGRESS.
+
+    The title is the prompt's first line; the whole prompt is the detail when
+    there is more of it than the title shows. An empty prompt makes no card.
+    """
+    title = prompt_title(prompt)
+    if not title:
+        return None
+    close_prompt_cards(conn, project_id, session_id)
+    text = str(prompt).strip()
+    return create_task(
+        conn,
+        project_id,
+        title=title,
+        detail=text if text != title else "",
+        status=IN_PROGRESS,
+        source=SOURCE_PROMPT,
+        session_id=session_id,
+    )

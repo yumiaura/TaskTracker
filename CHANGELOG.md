@@ -10,6 +10,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Prompts mode (`TASKTRACKER_CARDS=prompts`): every prompt sent to Claude is a
+  card - its first line the title, the whole prompt the detail - in IN PROGRESS
+  until Claude stops answering, then DONE. The next prompt also closes the last
+  one, since an interrupted answer fires no Stop. Slash commands make no card,
+  and Claude's own tasks are not mirrored in this mode; in claude mode the
+  prompt events are ignored in turn. The hooks run on UserPromptSubmit and
+  Stop, and print nothing. Prompt cards carry an amber `prompt` badge
+  (`feat/cards-prompts`).
 - Where the cards come from is chosen in `.env` beside docker-compose.yml:
   `TASKTRACKER_CARDS=claude` (the default) or `prompts`, documented in
   `.env.example`. The container records the mode in the database when it
