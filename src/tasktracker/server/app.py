@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The FastAPI application: the API router, then the panel's files."""
+"""The FastAPI application: the API router, the MCP endpoint, then the panel."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.routing import Route
 
-from .. import __version__
+from .. import __version__, mcp_server
 from . import routes_api, webui
 
 logger = logging.getLogger(__name__)
@@ -56,10 +60,26 @@ def sentence(detail: object) -> str:
     return str(detail)
 
 
+# Where the plugin reaches the MCP tools. The same path is written into the
+# plugin's .mcp.json, and the two have to agree.
+MCP_PATH = "/mcp"
+
+
 def build() -> FastAPI:
+    # The MCP session manager has to be running for as long as the app serves,
+    # and a manager mounted inside another app does not get its own lifespan
+    # run - so this app runs it.
+    manager = mcp_server.http_manager()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with manager.run():
+            yield
+
     app = FastAPI(
         title="TaskTracker",
         version=__version__,
+        lifespan=lifespan,
         # No interactive docs on a board with no authentication. There is
         # nothing secret behind them, but they are three more routes at the root
         # of a mount that has to stay predictable, and the API is nine endpoints
@@ -85,6 +105,9 @@ def build() -> FastAPI:
         return JSONResponse(envelope(sentence(exc.errors())), status_code=422)
 
     app.include_router(routes_api.router)
+    # A route rather than a mount: a mount at /mcp answers a POST to /mcp with a
+    # redirect to /mcp/, and an MCP client posting JSON-RPC does not follow it.
+    app.router.routes.append(Route(MCP_PATH, endpoint=StreamableHTTPASGIApp(manager)))
     # Last, and it matters: a mount at `/` matches every path there is, so
     # registering it before the router would answer /api/projects out of the
     # file system - a 404 with nothing in the browser to say why.

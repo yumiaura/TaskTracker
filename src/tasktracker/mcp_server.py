@@ -9,10 +9,16 @@ session's plan - "do this next time" - and reading the queue back at the start
 of a session, when the todo list is empty and the only record of what was left
 over is this board.
 
-Every tool resolves its project the same way: the argument if one was given,
-otherwise the directory this process was started in, walked up to its
-repository root. So a session in ~/src/app files against `app` without ever
-naming it.
+It is served two ways. The plugin reaches it over HTTP, inside the container
+that also serves the panel (`http_manager`, mounted by the web app at /mcp).
+`tasktracker mcp` still speaks it over stdio for a client started in the
+project itself (`main`).
+
+The difference that matters between the two is the project. Over stdio the
+client starts this process in the directory it is working in, so a tool that
+names no project can take the working directory. Over HTTP this process is the
+web server - its working directory is the image's /app - so there a tool must be
+told, and one that is not says so instead of guessing.
 """
 
 from __future__ import annotations
@@ -21,6 +27,7 @@ import os
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 from . import store
 
@@ -34,6 +41,9 @@ TaskTracker keeps a per-project task board that outlives a session.
 
 Claude Code's own todo list is mirrored onto this board automatically - do not
 re-file the todos you are already tracking with TodoWrite.
+
+Pass `project` on every call: the absolute path of the directory you are
+working in. The board may be running somewhere that cannot see where you are.
 
 Use these tools for what the todo list cannot hold:
   * `tasks_queued` at the start of work on a project, to pick up what a previous
@@ -54,22 +64,43 @@ server: FastMCP = FastMCP("tasktracker", instructions=INSTRUCTIONS)
 # hand rather than against the home directory.
 PROJECT_ENV = "TASKTRACKER_PROJECT"
 
+# Whether a tool that named no project may take the working directory as one.
+#
+# Off unless `main` turns it on, and only `main` does: under stdio the client
+# started this process inside the project, and the working directory is the
+# answer. Everywhere else it is not - over HTTP this process is the web server,
+# and falling back to its working directory would file every task on the board
+# under a project called `app`.
+cwd_is_project = False
+
+
+class MissingProject(ValueError):
+    """A tool was called with no project and there is nothing to infer one from.
+
+    Raised rather than guessed, and worded as the instruction the caller needs:
+    the message reaches Claude as the tool's result, and Claude acts on what it
+    reads there.
+    """
+
 
 def default_root() -> str:
     """The project directory for a tool that named none.
 
-    The variable is only believed when it names a directory that exists. The
-    plugin sets it from `${CLAUDE_PROJECT_DIR}`, and a client that does not
-    expand that hands this process the literal string - which would otherwise
-    become a project named `${CLAUDE_PROJECT_DIR}`, sitting at the top of the
-    panel with everything filed under it. The working directory is what the
-    client started this server in, and it is right whenever the variable is
-    not.
+    The variable is only believed when it names a directory that exists: a
+    client that does not expand a `${...}` in its config hands this process the
+    literal string, which would otherwise become a project with that string for
+    a name. The working directory is only believed under stdio, for the reason
+    on `cwd_is_project`.
     """
     named = os.environ.get(PROJECT_ENV, "").strip()
     if named and os.path.isdir(named):
         return named
-    return os.getcwd()
+    if cwd_is_project:
+        return os.getcwd()
+    raise MissingProject(
+        "No project given. Pass `project`: the absolute path of the directory "
+        "you are working in."
+    )
 
 # What a task looks like on the way back to Claude.
 #
@@ -120,7 +151,8 @@ def tasks_queued(project: str = "") -> dict[str, Any]:
     sessions left behind, which nothing in the current session's context knows
     about. Finished tasks are not listed - ask `tasks_all` for those.
 
-    project: a name, a path, or an id. Omit it for the project you are in.
+    project: the absolute path of the directory you are working in. A project
+    name or id also works.
     """
     with store.database() as conn:
         found = resolve(conn, project)
@@ -136,6 +168,7 @@ def tasks_queued(project: str = "") -> dict[str, Any]:
 def tasks_all(project: str = "", include_hidden: bool = False) -> dict[str, Any]:
     """Every task on a project's board, finished ones included.
 
+    project: the absolute path of the directory you are working in.
     include_hidden: also return finished tasks old enough that the panel has
     stopped drawing them. Off by default, because that is a list that only grows
     and is almost never what the question was about.
@@ -159,6 +192,7 @@ def task_add(
     one of them on it twice.
 
     title: one line. Anything longer belongs in `detail`.
+    project: the absolute path of the directory you are working in.
     start: file it as already in progress rather than as queued.
     """
     with store.database() as conn:
@@ -248,6 +282,33 @@ def projects_list() -> dict[str, Any]:
         }
 
 
+def http_manager() -> StreamableHTTPSessionManager:
+    """A fresh HTTP session manager for these tools, for one web app to mount.
+
+    Built here rather than taken from `server.streamable_http_app()`, because
+    FastMCP keeps the one it builds for the life of the process and a manager
+    can be run exactly once. One manager per app means every app - the one in
+    the container, and each one a test builds - gets its own.
+
+    Stateless, with plain JSON answers. There is nothing held between two calls
+    that a session would carry, and a stateful session is one a container
+    restart invalidates under a client that does not know to reconnect.
+
+    `server._mcp_server` is the SDK's own attribute - FastMCP has no public name
+    for the low-level server its tools are registered on. The transport security
+    is FastMCP's default for a server on 127.0.0.1: requests are accepted only
+    with a Host of 127.0.0.1 or localhost, which is what stands between a board
+    with no authentication and a web page in the same browser rebinding a DNS
+    name to it.
+    """
+    return StreamableHTTPSessionManager(
+        app=server._mcp_server,
+        json_response=True,
+        stateless=True,
+        security_settings=server.settings.transport_security,
+    )
+
+
 def main() -> int:
     """Speak MCP over stdio until the client hangs up.
 
@@ -256,5 +317,7 @@ def main() -> int:
     print is a client that reports the server as malformed with no clue as to
     which line did it.
     """
+    global cwd_is_project
+    cwd_is_project = True
     server.run(transport="stdio")
     return 0

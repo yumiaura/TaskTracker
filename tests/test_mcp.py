@@ -165,3 +165,93 @@ def test_nothing_on_the_import_path_writes_to_stdout():
         check=True,
     )
     assert done.stdout == b""
+
+
+def test_with_no_project_and_no_stdio_client_the_tool_asks_for_one(home, monkeypatch, conn):
+    """Over HTTP the server's working directory is the image's, not Claude's.
+
+    Guessing from it would file every task under a project called `app`. The
+    tool refuses instead, in words Claude can act on - and creates nothing
+    while refusing.
+    """
+    monkeypatch.delenv(mcp_server.PROJECT_ENV, raising=False)
+    monkeypatch.setattr(mcp_server, "cwd_is_project", False)
+    with pytest.raises(mcp_server.MissingProject, match="Pass `project`"):
+        mcp_server.task_add("Nowhere to go")
+    assert store.projects(conn) == []
+
+
+def test_under_stdio_the_working_directory_is_the_project(home, tmp_path, monkeypatch):
+    root = tmp_path / "stdio-repo"
+    (root / ".git").mkdir(parents=True)
+    monkeypatch.delenv(mcp_server.PROJECT_ENV, raising=False)
+    monkeypatch.setattr(mcp_server, "cwd_is_project", True)
+    monkeypatch.chdir(root)
+    assert mcp_server.task_add("From the working directory")["project"] == "stdio-repo"
+
+
+# What an MCP client sends: JSON-RPC, and an Accept header naming both answers
+# the streamable HTTP transport may give.
+MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
+
+
+def rpc(client, ident, method, params=None, headers=None):
+    body = {"jsonrpc": "2.0", "id": ident, "method": method}
+    if params is not None:
+        body["params"] = params
+    return client.post("/mcp", json=body, headers={**MCP_HEADERS, **(headers or {})})
+
+
+def test_the_web_app_serves_the_tools_over_http(home, tmp_path, monkeypatch):
+    """The path the plugin actually takes: the web app, /mcp, JSON-RPC over HTTP.
+
+    Entered as a context manager so the app's lifespan runs - the session
+    manager lives there, and without it every request would fail.
+    """
+    from fastapi.testclient import TestClient
+
+    from tasktracker.server.app import build
+
+    monkeypatch.delenv(mcp_server.PROJECT_ENV, raising=False)
+    root = tmp_path / "overhttp"
+    (root / "src").mkdir(parents=True)
+    (root / ".git").mkdir()
+
+    with TestClient(build(), base_url="http://127.0.0.1:8787") as client:
+        init = rpc(client, 1, "initialize", {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"},
+        })
+        assert init.status_code == 200
+        assert init.json()["result"]["serverInfo"]["name"] == "tasktracker"
+
+        # Filed from a subdirectory, and still lands on the repository's board -
+        # the same project the hook would have chosen.
+        added = rpc(client, 2, "tools/call", {
+            "name": "task_add",
+            "arguments": {"title": "Over HTTP", "project": str(root / "src")},
+        })
+        assert added.json()["result"]["structuredContent"]["project"] == "overhttp"
+
+        # And with no project, an error Claude can read rather than a guess.
+        bare = rpc(client, 3, "tools/call", {"name": "tasks_queued", "arguments": {}})
+        result = bare.json()["result"]
+        assert result["isError"] is True
+        assert "Pass `project`" in result["content"][0]["text"]
+
+
+def test_the_http_endpoint_refuses_a_foreign_host(home):
+    """A page in the same browser cannot rebind a DNS name to the board.
+
+    The endpoint reads and writes the board with no authentication, which is
+    safe only while nothing but 127.0.0.1 and localhost can address it. A Host
+    header naming anything else is refused before any tool runs.
+    """
+    from fastapi.testclient import TestClient
+
+    from tasktracker.server.app import build
+
+    with TestClient(build(), base_url="http://127.0.0.1:8787") as client:
+        refused = rpc(client, 1, "tools/list", headers={"Host": "evil.example:8787"})
+        assert refused.status_code == 421
