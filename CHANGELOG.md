@@ -8,6 +8,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Docker: a `Dockerfile` and `docker-compose.yml` that run the panel, its REST
+  API and the MCP server in one container on `127.0.0.1:8787`. The board's
+  database is shared with the host through a bind mount, the home directory is
+  mounted read-only at the same path so project roots resolve as they do for
+  the hook, and the entrypoint runs the server as the owner of that home rather
+  than as root (`feat/docker`).
+- The MCP tools over HTTP at `/mcp`, served by the same web app as the panel.
+  Stateless JSON, and FastMCP's DNS-rebinding protection: only a Host of
+  `127.0.0.1` or `localhost` is accepted (`feat/docker`).
 - Documentation: a compact README with badges, screenshots of the board and the
   projects table, and a language switcher; Russian and Chinese translations
   under `docs/`; four tests that resolve every relative link, check each README
@@ -43,3 +52,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Repository scaffold: packaging metadata, licence, ignore rules and
   `tasktracker.config` - the one module that answers "which database file" and
   "which project is this directory" for every entry point (`chore/scaffold`).
+
+### Changed
+
+- The plugin connects to the MCP server over HTTP, at the container, instead of
+  starting it over stdio - so nothing has to be pip-installed on the host
+  (`feat/docker`).
+- Outside stdio, an MCP tool called with no `project` now answers with an error
+  asking for one, instead of taking the server's working directory - which in
+  the container is `/app`. The server's instructions and both plugin commands
+  tell Claude to pass the path it is working in (`feat/docker`).
+- The README and its translations are cut down to the three launch steps
+  (`feat/docker`).
+
+### Fixed
+
+- `mcp` is bounded `>=1.29,<2`. The unbounded range installed mcp 2.x, which
+  renamed FastMCP, and the server failed at import on any fresh install
+  (`feat/docker`).
+
