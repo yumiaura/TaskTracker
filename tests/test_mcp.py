@@ -256,3 +256,17 @@ def test_the_http_endpoint_refuses_a_foreign_host(home):
     with TestClient(build(), base_url="http://127.0.0.1:8787") as client:
         refused = rpc(client, 1, "tools/list", headers={"Host": "evil.example:8787"})
         assert refused.status_code == 421
+
+
+def test_a_project_id_that_does_not_exist_is_refused(repo):
+    with pytest.raises(store.NotFound):
+        mcp_server.tasks_queued(project="999")
+
+
+def test_the_stdio_entry_point_trusts_the_working_directory(monkeypatch):
+    ran = []
+    monkeypatch.setattr(mcp_server, "cwd_is_project", False)
+    monkeypatch.setattr(mcp_server.server, "run", lambda transport: ran.append(transport))
+    assert mcp_server.main() == 0
+    assert ran == ["stdio"]
+    assert mcp_server.cwd_is_project is True

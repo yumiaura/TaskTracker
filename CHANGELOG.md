@@ -10,6 +10,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Test coverage: `pytest --cov` measures the package with branches, configured
+  in pyproject.toml, with pytest-cov in the dev extras. Coverage goes from 84% to
+  99% - the CLI, which only ever ran in a subprocess coverage cannot see, the
+  API's 404 and 400 answers, the store's refusals and rollback, and the payloads
+  the hook declines. One unused helper it turned up is removed
+  (`test/coverage`).
 - The README and its translations show the board through one real Claude Code
   session: the tasks landing in QUEUE, each moving to IN PROGRESS before Claude
   starts on it, all of them in DONE - three frames of a panel that was never

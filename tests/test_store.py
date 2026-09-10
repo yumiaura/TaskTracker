@@ -192,3 +192,34 @@ def test_deleting_a_project_takes_its_cards_with_it(conn, project):
     store.delete_project(conn, project["id"])
     with pytest.raises(store.NotFound):
         store.task(conn, card["id"])
+
+
+def test_what_the_store_refuses(conn, project):
+    with pytest.raises(ValueError, match="unknown status"):
+        store.create_task(conn, project["id"], "x", status="someday")
+    card = store.create_task(conn, project["id"], "x")
+    with pytest.raises(ValueError, match="a task needs a title"):
+        store.update_task(conn, card["id"], title="   ")
+    with pytest.raises(ValueError, match="unknown status"):
+        store.update_task(conn, card["id"], status="someday")
+    with pytest.raises(store.NotFound):
+        store.find_project(conn, "  ")
+    with pytest.raises(store.NotFound):
+        store.delete_project(conn, 999)
+
+
+def test_a_failed_write_leaves_nothing_behind(conn, project):
+    """The transaction rolls back: a write that fails half way is not half done."""
+    with pytest.raises(RuntimeError):
+        with store.transaction(conn):
+            conn.execute(
+                "UPDATE projects SET name = 'renamed' WHERE id = ?", (project["id"],)
+            )
+            raise RuntimeError("stop here")
+    assert store.project(conn, project["id"])["name"] == project["name"]
+
+
+def test_an_update_that_carries_nothing_changes_nothing(conn, project):
+    card = store.mirror_task_created(conn, project["id"], "s", "1", title="kept")
+    same = store.mirror_task_updated(conn, project["id"], "s", "1")
+    assert same["id"] == card["id"] and same["status"] == store.QUEUED

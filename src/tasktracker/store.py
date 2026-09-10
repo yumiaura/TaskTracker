@@ -223,10 +223,6 @@ class transaction:  # noqa: N801 - a context manager used as a statement, not a 
         return False
 
 
-def row_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
-
-
 # --------------------------------------------------------------------------
 # Settings
 # --------------------------------------------------------------------------

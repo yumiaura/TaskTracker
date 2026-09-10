@@ -423,3 +423,51 @@ def test_the_plugin_runs_the_hook_on_session_start():
     hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"]
     start = hooks["SessionStart"][0]["hooks"][0]["command"]
     assert start == hooks["PostToolUse"][0]["hooks"][0]["command"]
+
+
+# ---------------------------------------------------------------------------
+# Payloads the hook declines, quietly
+# ---------------------------------------------------------------------------
+
+
+def test_task_payloads_missing_what_they_need_change_nothing(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+
+    # TaskCreate with no number anywhere in its result, and one with no subject.
+    run(created(root, 1, "No number", response={}))
+    run(created(root, 1, "", response={"task": {"id": "1"}}))
+    # TaskUpdate with no task id, and one whose input is not an object at all.
+    no_id = updated(root, 1, status="completed")
+    no_id["tool_input"].pop("taskId")
+    run(no_id)
+    garbled = updated(root, 1, status="completed")
+    garbled["tool_input"] = "not an object"
+    run(garbled)
+    # TodoWrite whose input carries no list.
+    empty = payload(root)
+    empty["tool_input"] = {}
+    run(empty)
+
+    projects = store.projects(conn)
+    assert all(store.tasks(conn, row["id"]) == [] for row in projects)
+
+
+def test_the_task_number_is_read_from_a_content_list(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    response = {"content": [{"type": "text", "text": "Task #7 created successfully"}]}
+    run(created(root, 7, "From a content list", response=response))
+    run(updated(root, 7, status="in_progress"))
+    assert board(conn, root)["From a content list"]["status"] == store.IN_PROGRESS
+
+
+def test_an_unreadable_stdin_is_reported_and_still_exits_zero(capsys):
+    class Broken:
+        def read(self):
+            raise OSError("stdin went away")
+
+    assert hook.main(Broken()) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "stdin went away" in captured.err
