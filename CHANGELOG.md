@@ -10,6 +10,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- pre-commit hooks in `.pre-commit-config.yaml`: ruff's lint (with fixes) and
+  formatter, pinned to ruff 0.15.12, and the whole pytest suite on every
+  commit. `pre-commit` joins the dev extras; the code is formatted with ruff
+  format once as the baseline (`chore/pre-commit`).
 - Test coverage: `pytest --cov` measures the package with branches, configured
   in pyproject.toml, with pytest-cov in the dev extras. Coverage goes from 84% to
   99% - the CLI, which only ever ran in a subprocess coverage cannot see, the
