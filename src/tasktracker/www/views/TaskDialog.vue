@@ -32,7 +32,7 @@
           </div>
 
           <div>
-            <label class="form-label mb-1" for="tt-task-status">COLUMN</label>
+            <label class="form-label mb-1" for="tt-task-status">STATUS</label>
             <select id="tt-task-status" v-model="status" class="form-select form-select-sm">
               <option value="queued">QUEUE</option>
               <option value="in_progress">IN PROGRESS</option>
@@ -42,6 +42,11 @@
         </form>
 
         <div class="modal-footer p-1 d-flex justify-content-end">
+          <!-- On the left, away from SAVE, and only for a task that exists. It
+               does not delete by itself: it closes this dialog and hands the task
+               to the screen, which asks first, as the trash icon does. -->
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold me-auto"
+                  style="min-width:100px" v-if="taskId !== null" @click="askRemove">DELETE</button>
           <button type="button" class="btn btn-sm btn-secondary fw-bold" style="min-width:100px"
                   data-bs-dismiss="modal">CANCEL</button>
           <button type="button" class="btn btn-sm btn-primary fw-bold" style="min-width:100px"
@@ -58,14 +63,17 @@
 
    Used as:
 
-     <tt-task-dialog ref="editor" @saved="reload"></tt-task-dialog>
+     <tt-task-dialog ref="editor" @saved="reload" @remove="remove"></tt-task-dialog>
 
      this.$refs.editor.open({ projectId: 4 });            // a new card
      this.$refs.editor.open({ projectId: 4, task: row }); // an existing one
 
-   It reports `saved` and nothing else. The screen that opened it re-reads the
-   board, which is also what a poll would have done - so there is one path by
-   which cards get onto the screen rather than two that can disagree.
+   It reports two things. `saved`, after which the screen that opened it re-reads
+   the board - which is also what a poll would have done, so there is one path
+   by which cards get onto the screen rather than two that can disagree. And
+   `remove` with the task, when DELETE is pressed: sent after the dialog has
+   finished closing, so the screen's confirmation opens on a page with no second
+   dialog still fading out under it.
 
    A card being edited here is NOT locked against the poll behind it. The dialog
    holds its own copy of the fields; a save writes the fields the operator
@@ -77,6 +85,7 @@ module.exports = {
     return {
       projectId: null,
       taskId: null,
+      task: null,
       title: '',
       detail: '',
       status: 'queued',
@@ -120,6 +129,7 @@ module.exports = {
       var task = opts.task || null;
       this.projectId = opts.projectId;
       this.taskId = task ? task.id : null;
+      this.task = task;
       this.title = task ? task.title : '';
       this.detail = task ? (task.detail || '') : '';
       this.status = task ? task.status : 'queued';
@@ -132,6 +142,17 @@ module.exports = {
        dialog itself and leaves the first keystroke going nowhere. */
     handleShown: function () {
       if (this.$refs.titleEl) this.$refs.titleEl.focus();
+    },
+
+    askRemove: function () {
+      var self = this;
+      var task = this.task;
+      if (!task || !this.modal) return;
+      this.modalEl.addEventListener('hidden.bs.modal', function closed() {
+        self.modalEl.removeEventListener('hidden.bs.modal', closed);
+        self.$emit('remove', task);
+      });
+      this.modal.hide();
     },
 
     save: function () {

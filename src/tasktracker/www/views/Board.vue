@@ -58,7 +58,7 @@
                  draggable="true"
                  @dragstart="start($event, task)"
                  @dragend="end"
-                 @dblclick="edit(task)">
+                 @click="edit(task)">
               <div class="tt-task-title">{{ task.title }}</div>
               <div class="tt-task-detail" v-if="expanded[task.id] && task.detail">{{ task.detail }}</div>
               <div class="tt-task-foot">
@@ -102,22 +102,15 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="task in tasks" :key="task.id">
+          <!-- The whole row opens the task, as a card does on the board. The status
+               is a word here, not a control: it is changed in the task's dialog
+               and nowhere else in this view. -->
+          <tr v-for="task in tasks" :key="task.id" class="tt-row-open" @click="edit(task)">
             <td class="td-ellipsis" :title="task.detail || task.title">{{ task.title }}</td>
-            <!-- A select rather than a pill in this view: the table is the way
-                 to work through a long list, and dragging is what the board is
-                 for. The word is still the word the pill would have shown. -->
-            <td>
-              <select class="form-select form-select-sm"
-                      :value="task.status" @change="pick(task, $event.target.value)">
-                <option value="queued">QUEUE</option>
-                <option value="in_progress">IN PROGRESS</option>
-                <option value="done">DONE</option>
-              </select>
-            </td>
+            <td>{{ statusLabel(task.status) }}</td>
             <td class="text-muted-soft" :title="sourceTitle(task)">{{ task.source }}</td>
             <td :title="task.updated_at | datetime">{{ task.updated_at | ago }}</td>
-            <td class="td-actions">
+            <td class="td-actions" @click.stop>
               <i class="fa fa-pen" role="button" tabindex="0" title="Edit"
                  @click="edit(task)" @keyup.enter="edit(task)"></i>
               <i class="fa fa-trash text-danger" role="button" tabindex="0" title="Delete"
@@ -133,7 +126,7 @@
       </table>
     </div>
 
-    <tt-task-dialog ref="editor" @saved="reload"></tt-task-dialog>
+    <tt-task-dialog ref="editor" @saved="reload" @remove="remove"></tt-task-dialog>
     <tt-confirm ref="confirm"></tt-confirm>
   </div>
 </template>
@@ -163,6 +156,10 @@ var COLUMNS = [
   },
   { status: 'done', title: 'DONE', klass: 'tt-column-done', empty: 'Nothing finished yet.' },
 ];
+
+/* The word for each state, as the column heads spell it - the table view shows
+   the same word the board's column does. */
+var STATUS_LABELS = { queued: 'QUEUE', in_progress: 'IN PROGRESS', done: 'DONE' };
 
 /* What each source means, said in words on hover. The badge is one lowercase
    token because the card is one line tall; the sentence is where it says what
@@ -291,20 +288,8 @@ module.exports = {
       });
     },
 
-    /* The table view's way of moving a card: to the foot of the column it
-       picked, which is what the server does for a status change with no index.
-       A select cannot express "third from the top" and should not try to. */
-    pick: function (task, status) {
-      if (status === task.status) return;
-      var self = this;
-      axios.patch('/api/tasks/' + task.id, { status: status }).then(function () {
-        self.reload();
-      }).catch(function (err) {
-        self.error = self.$apiError(err);
-        // The select is now showing a status the server did not accept. Reading
-        // the board again is what puts the word back to what is true.
-        self.reload();
-      });
+    statusLabel: function (status) {
+      return STATUS_LABELS[status] || status;
     },
 
     /* Drag and drop, with the browser's own events and no library.
