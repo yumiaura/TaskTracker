@@ -14,13 +14,18 @@ keywords = ["claude", "mcp", "tasks", "kanban"]
 
 # Three runtime dependencies and no more.
 #
-# `mcp` is the official SDK the stdio server speaks through; fastapi and
-# uvicorn serve the panel and its REST API. Everything else this package needs
+# `mcp` is the official SDK the MCP server speaks through; fastapi and uvicorn
+# serve the panel, its REST API and the MCP endpoint.
+#
+# `mcp` is bounded on both sides. 2.x renamed FastMCP and changed the APIs this
+# package is written against, so an unbounded range installs a version that
+# fails at import - which is exactly what a fresh image build did. 1.29 is the
+# release the HTTP transport here was written and tested on. Everything else this package needs
 # - the store, the hook, the CLI - is standard library, because a plugin that
 # has to be pip-installed into the right environment before Claude can write a
 # single task is a plugin that gets uninstalled.
 dependencies = [
-  "mcp>=1.2",
+  "mcp>=1.29,<2",
   "fastapi>=0.110",
   "uvicorn>=0.27",
 ]
