@@ -45,6 +45,16 @@ claude plugin install tasktracker@tasktracker
 - Попроси Claude *«составь todo-список из трёх шагов для …»* и открой http://127.0.0.1:8787 —
   там появится проект с тремя карточками с пометкой `TODO`.
 
+**Обновление** — после получения изменений, из папки TaskTracker:
+
+```bash
+docker compose up -d --build
+claude plugin marketplace update tasktracker
+claude plugin update tasktracker@tasktracker
+```
+
+Потом перезапусти Claude Code.
+
 ### Лицензия
 
 [MIT](../LICENSE). Montserrat — под [SIL Open Font License](../src/tasktracker/www/fonts/OFL.txt).
