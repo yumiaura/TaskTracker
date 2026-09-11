@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tasktracker"
-version = "0.0.2"
+version = "0.0.3"
 description = "A task board Claude Code and Codex fill in, served as a local web panel."
 readme = "README.md"
 requires-python = ">=3.11"

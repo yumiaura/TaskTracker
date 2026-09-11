@@ -78,5 +78,5 @@ in history. Deleting the surviving card explicitly deletes its aliases and
 merge history too, as deleting a task already does for its stored data.
 
 SQLite schema 2 adds aliases and history automatically on first open. The
-application version remains 0.0.2. Update the server and hooks together: older
+change arrived in version 0.0.3. Update the server and hooks together: older
 code does not know to hide merged aliases.

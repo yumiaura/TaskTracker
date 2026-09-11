@@ -6,8 +6,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.0.3] - 2026-09-11
+
 ### Added
 
+- Version 0.0.3: Codex support and semantic reconciliation, tagged `v0.0.3`.
+  CLAUDE.md and AGENTS.md say the version is 0.0.3 (`feat/codex`).
 - Semantic reconciliation through the connected Claude/Codex LLM:
   `tasks_review`, `task_get` and `tasks_reconcile`, plus
   `/tasktracker:reconcile` for an explicit pass. Stop requests one bounded
@@ -17,7 +21,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   texts and reasons in merge history. The board shows all source badges and
   a MERGED CARDS section; counters count the surviving card once. Hook replays
   and old MCP ids resolve to it, while prompt completion cannot finish ongoing
-  work. Schema migration preserves existing data; the version stays 0.0.2.
+  work. Schema migration preserves existing data.
 - Codex lifecycle hooks mirror native `update_plan` steps with a `CODEX` badge,
   register projects at session start, and remind Codex to keep its plan current.
   Prompts mode tracks `UserPromptSubmit` through `Stop`, with turn ids preventing
