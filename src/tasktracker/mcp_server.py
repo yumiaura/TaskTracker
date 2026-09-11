@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The MCP server: the tools Claude calls to read and write the board.
+"""The MCP server: tools Claude and Codex call to read and write the board.
 
 The hook beside this module mirrors Claude Code's own todo list, which covers
 the common case with no tool call at all. These tools are for the two things a
@@ -28,8 +28,9 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from pydantic import BaseModel, ConfigDict
 
-from . import config, store
+from . import config, reconcile, store
 
 # What the server tells Claude about itself, once, at connection.
 #
@@ -39,13 +40,15 @@ from . import config, store
 BASE_INSTRUCTIONS = """
 TaskTracker keeps a per-project task board that outlives a session.
 
-Claude Code's own task list is mirrored onto this board automatically - do not
-re-file the tasks you are already tracking with TaskCreate (or TodoWrite).
+With TaskTracker hooks installed, Claude Code's TaskCreate/TodoWrite tasks and
+Codex's update_plan steps are mirrored automatically in task mode. Do not
+re-file those tasks with task_add. If no hooks are installed, use task_add,
+task_start and task_done to track your current work directly through MCP.
 
 Pass `project` on every call: the absolute path of the directory you are
 working in. The board may be running somewhere that cannot see where you are.
 
-Use these tools for what the todo list cannot hold:
+Use these tools alongside the mirrored plan:
   * `tasks_queued` at the start of work on a project, to pick up what a previous
     session left behind.
   * `task_add` for work that is worth doing but is not part of what you are
@@ -55,6 +58,7 @@ Use these tools for what the todo list cannot hold:
 
 Task ids are stable. Titles are one line; anything longer belongs in `detail`.
 """.strip()
+BASE_INSTRUCTIONS += "\n\n" + reconcile.INSTRUCTIONS
 
 
 def instructions(mode: str) -> str:
@@ -65,8 +69,19 @@ def instructions(mode: str) -> str:
     that server's tools - but it costs nothing to say it twice.
     """
     if mode == config.CARDS_CLAUDE:
-        return config.PLAN_INSTRUCTIONS + "\n\n" + BASE_INSTRUCTIONS
-    return BASE_INSTRUCTIONS
+        return (
+            "For Claude Code with TaskTracker hooks:\n"
+            + config.PLAN_INSTRUCTIONS
+            + "\n\nFor Codex with TaskTracker hooks:\n"
+            + config.CODEX_PLAN_INSTRUCTIONS
+            + "\n\n"
+            + BASE_INSTRUCTIONS
+        )
+    return (
+        "TaskTracker is in prompts mode. Hooks track user prompts; do not also\n"
+        "file the current prompt or plan through MCP. Use MCP for earlier work,\n"
+        "explicit board edits and follow-ups.\n\n" + BASE_INSTRUCTIONS
+    )
 
 
 INSTRUCTIONS = instructions(config.cards_mode())
@@ -123,7 +138,7 @@ def default_root() -> str:
 # position, the session that wrote it, the created stamp - are the board's
 # bookkeeping, and a list of thirty tasks carrying all of it is a page of
 # context spent saying nothing Claude can act on.
-BRIEF_FIELDS = ("id", "title", "status", "detail", "source")
+BRIEF_FIELDS = ("id", "title", "status", "detail", "source", "sources")
 
 
 def brief(task: dict[str, Any]) -> dict[str, Any]:
@@ -166,6 +181,9 @@ def tasks_queued(project: str = "") -> dict[str, Any]:
     sessions left behind, which nothing in the current session's context knows
     about. Finished tasks are not listed - ask `tasks_all` for those.
 
+    cards_mode reports the board's current mode: claude (native tasks from
+    Claude or Codex), or prompts (user prompts, tracked by hooks).
+
     project: the absolute path of the directory you are working in. A project
     name or id also works.
     """
@@ -175,6 +193,9 @@ def tasks_queued(project: str = "") -> dict[str, Any]:
         return {
             "project": found["name"],
             "queued": [brief(row) for row in rows if row["status"] == store.QUEUED],
+            "cards_mode": config.cards_mode(
+                store.setting(conn, config.CARDS_SETTING, config.cards_mode())
+            ),
             "in_progress": [brief(row) for row in rows if row["status"] == store.IN_PROGRESS],
         }
 
@@ -195,16 +216,72 @@ def tasks_all(project: str = "", include_hidden: bool = False) -> dict[str, Any]
 
 
 @server.tool()
+def task_get(task_id: int) -> dict[str, Any]:
+    """Read a complete card, including original texts and reasons for past merges.
+
+    Use this before a semantic merge when tasks_review truncated a detail.
+    An id belonging to a merged duplicate resolves to the surviving card.
+    """
+    with store.database() as conn:
+        return {
+            "task": store.task(conn, task_id),
+            "merge_history": store.merge_history(conn, task_id),
+        }
+
+
+@server.tool()
+def tasks_review(project: str = "") -> dict[str, Any]:
+    """Read recent cards, including DONE, for LLM semantic reconciliation.
+
+    Compare meaning and conversation context across sources and languages.
+    Only merge the same event, never merely related work or distinct subtasks.
+    Read task_get for truncated descriptions. Send the returned review_token
+    to tasks_reconcile, including merges=[] when there are no duplicates.
+    """
+    with store.database() as conn:
+        found = resolve(conn, project)
+        return {"project": found["path"], **reconcile.review(conn, found["id"])}
+
+
+class MergeDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    keep_id: int
+    duplicate_ids: list[int]
+    reason: str
+
+
+@server.tool()
+def tasks_reconcile(
+    review_token: str, merges: list[MergeDecision], project: str = ""
+) -> dict[str, Any]:
+    """Apply the LLM's semantic duplicate decisions to a reviewed snapshot.
+
+    Each group has keep_id, duplicate_ids and reason. Keep the concrete task,
+    not the prompt. Original texts and hook identities are preserved. A stale
+    review or invalid group changes nothing. An empty merges list records a
+    reviewed board with no duplicates. Never merge uncertain matches.
+    """
+    with store.database() as conn:
+        found = resolve(conn, project)
+        result = reconcile.apply(
+            conn, found["id"], review_token, [group.model_dump() for group in merges]
+        )
+        result["tasks"] = [brief(card) for card in result["tasks"]]
+        return {"project": found["path"], **result}
+
+
+@server.tool()
 def task_add(
     title: str, detail: str = "", project: str = "", start: bool = False
 ) -> dict[str, Any]:
     """Put a task on a project's board.
 
-    For work worth doing that is not part of what you are doing right now - a
-    follow-up, something noticed in passing, something to pick up next session.
-    Do NOT use it to re-file the tasks you are already tracking with TaskCreate
-    or TodoWrite: those are mirrored onto the board already, and filing them
-    twice puts every one of them on it twice.
+    With TaskTracker hooks installed, use this for follow-ups outside the
+    current plan. Do NOT re-file tasks already mirrored from TaskCreate,
+    TodoWrite or Codex update_plan, or prompts tracked in prompts mode.
+    Without hooks, this also tracks current work; use task_start/task_done
+    to keep its status current.
 
     title: one line. Anything longer belongs in `detail`.
     project: the absolute path of the directory you are working in.

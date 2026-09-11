@@ -39,6 +39,16 @@
               <option value="done">DONE</option>
             </select>
           </div>
+          <div class="mt-2" v-if="mergeHistory.length">
+            <details v-for="(entry, index) in mergeHistory" :key="index" class="mb-2">
+              <summary>MERGED CARDS</summary>
+              <p class="small my-1">{{ entry.reason }}</p>
+              <div v-for="original in entry.originals" :key="original.id" class="small mb-2">
+                <strong>{{ original.source.toUpperCase() }} #{{ original.id }}: {{ original.title }}</strong>
+                <div style="white-space:pre-wrap;overflow-wrap:anywhere">{{ original.detail }}</div>
+              </div>
+            </details>
+          </div>
         </form>
 
         <div class="modal-footer p-1 d-flex justify-content-end">
@@ -90,6 +100,7 @@ module.exports = {
       detail: '',
       status: 'queued',
       saving: false,
+      mergeHistory: [],
     };
   },
 
@@ -134,6 +145,15 @@ module.exports = {
       this.detail = task ? (task.detail || '') : '';
       this.status = task ? task.status : 'queued';
       this.saving = false;
+      this.mergeHistory = [];
+      if (task && task.sources) {
+        var self = this;
+        axios.get('/api/tasks/' + task.id).then(function (response) {
+          if (self.taskId === task.id) self.mergeHistory = response.data.merge_history;
+        }).catch(function (err) {
+          self.$toast('danger', self.$apiError(err));
+        });
+      }
       if (this.modal) this.modal.show();
     },
 

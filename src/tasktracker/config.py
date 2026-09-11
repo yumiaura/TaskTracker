@@ -66,6 +66,9 @@ Before you start anything that takes more than one step, create one task per
 step with TaskCreate. Set each to in_progress with TaskUpdate when you start it
 and to completed when it is done. Do this even for work you could finish
 without a list - the list is what the user reads to follow along.
+At session start and after work, use tasks_review and tasks_reconcile to merge
+cards from different sources only when they describe the same event. Leave
+distinct subtasks and uncertain matches separate; submit merges=[] if none.
 """.strip()
 
 # The same, as one line added to every prompt in claude mode. The session-start
@@ -74,7 +77,33 @@ without a list - the list is what the user reads to follow along.
 PROMPT_REMINDER = (
     "TaskTracker: if this request takes more than one step, track it with TaskCreate - "
     "one task per step, in_progress with TaskUpdate before you start it, completed when done."
+    " After work, use tasks_review/tasks_reconcile to reconcile duplicate events across sources."
 )
+
+# Codex has its own plan tool. These go through its lifecycle hooks, never
+# through the Claude hook: TaskCreate is not a Codex tool.
+CODEX_PLAN_INSTRUCTIONS = """
+TaskTracker mirrors your update_plan tool onto the user's project board.
+Before work that takes more than one step, call update_plan with one step per
+task. Use pending, in_progress before starting, and completed only when done.
+Keep the step text stable as you change its status. Do not also file these
+steps with task_add: they are already mirrored. Read tasks_queued at the start
+of work, passing project as the absolute repository root; reuse earlier tasks
+with task_start/task_done instead of creating duplicates in a new plan.
+Use task_add for follow-ups outside the current plan.
+Use tasks_review/tasks_reconcile at session start and after work to reconcile
+duplicate events across sources; leave distinct or uncertain work separate.
+""".strip()
+
+CODEX_PROMPTS_INSTRUCTIONS = """
+TaskTracker is in prompts mode: hooks create a card for each user prompt and
+finish it when the answer stops. Do not also file the current prompt or its
+plan with task_add. Read tasks_queued with project set to the absolute
+repository root to pick up earlier work; MCP tools remain available for
+explicit board edits and follow-ups.
+Use tasks_review/tasks_reconcile after work to reconcile duplicate events
+across sources; leave distinct or uncertain work separate.
+""".strip()
 
 # How long a finished task stays on the board, in days, before the panel stops
 # drawing it. Zero means never hide. The task itself is not deleted by this and

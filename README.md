@@ -1,6 +1,6 @@
 EN | [RU](docs/README_RU.md) | [CN](docs/README_CN.md)
 
-## TaskTracker: a board Claude fills in for itself 🗂️
+## TaskTracker: a board Claude Code and Codex fill in for themselves 🗂️
 
 <p class="badges">
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-D97757?logo=anthropic&logoColor=white" alt="Claude Code plugin">
@@ -14,6 +14,9 @@ Claude Code keeps a task list while it works - and that list dies with the sessi
 TaskTracker mirrors it onto a board per project, and gives Claude MCP tools to read the queue back next time.<br>
 The board is a web panel: projects, then three columns - **QUEUE**, **IN PROGRESS**, **DONE**.<br>
 A project appears the moment you start Claude in it; the panel refreshes itself.
+
+**Codex is supported too:** its native plan is mirrored through lifecycle hooks,
+and the same MCP server reads the queue. See [Codex setup](#-codex).
 
 <img src="docs/board.png" width="800" alt="One project's board: three columns, drag and drop between them">
 
@@ -42,7 +45,8 @@ docker compose up -d
 The panel is at http://127.0.0.1:8787. Where the cards come from is set in `.env` - see
 [below](#-where-the-cards-come-from).
 
-**2. Install the plugin** - once, from the same directory; it works in every project:
+**2. Install the Claude Code plugin** - once, from the same directory; it works in every project.
+For Codex, use the [Codex steps](#-codex) instead:
 
 ```bash
 claude plugin marketplace add ./
@@ -70,6 +74,28 @@ claude plugin install tasktracker@tasktracker
 
 Then restart Claude Code.
 
+## 🤖 Codex
+
+After starting the board, run these from the checkout (Python 3.11+ on the host;
+Linux, macOS or WSL):
+
+```bash
+codex mcp add tasktracker --url http://127.0.0.1:8787/mcp
+python3 hooks/install-codex.py
+```
+
+Restart Codex, open `/hooks` and review and trust the TaskTracker hooks; Codex
+requires that review before they run. Check the connection in `/mcp`.
+The installer keeps your other hooks and backs up a changed `hooks.json`.
+
+With `TASKTRACKER_CARDS=claude` (the existing default, shared by both clients),
+Codex's `update_plan` steps become `CODEX` cards and follow their native status.
+With `TASKTRACKER_CARDS=prompts`, a prompt is in IN PROGRESS until Codex stops,
+then DONE. Claude and Codex share the board; their sessions remain separate.
+
+After updates, rebuild the container, rerun the installer and restart Codex.
+[Full setup, checks and limitations](docs/CODEX.md).
+
 ## 🃏 Where the cards come from
 
 One setting, `TASKTRACKER_CARDS` in `.env` beside `docker-compose.yml`
@@ -91,6 +117,23 @@ TASKTRACKER_CARDS=prompts
 
 <img src="docs/prompts.png" width="800" alt="Prompts mode: three prompts as cards, one in IN PROGRESS and two in DONE">
 
+## 🔗 Duplicate cards
+
+Claude/Codex compares card meaning through `tasks_review` and applies its
+decisions with `tasks_reconcile`. For example, a prompt asking for version
+0.0.2 and an MCP task recording that release can become one card. Different
+subtasks, releases and uncertain matches stay separate.
+
+After work, the Stop hook requests one review when cards from different sources
+have changed. It includes DONE cards. The surviving card shows all source
+badges; open **MERGED CARDS** in its dialog to read the originals and the reason.
+Repeated hooks resolve to that same card. A completed prompt never completes
+an unfinished task just because they were merged.
+
+For existing duplicates, run `/tasktracker:reconcile` in Claude Code, or ask
+Codex to reconcile this project's TaskTracker cards. Update the container and
+installed hooks first. [How the LLM review works](docs/RECONCILIATION.md).
+
 ## 🧪 Development
 
 ```bash
@@ -104,7 +147,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs ruff and `pytest --cov` on Pyth
 3.12 for every pull request and every push to `main`.
 
 The panel has no build step: `src/tasktracker/www` is served as it is, and every library is
-vendored there. The version stays **0.0.2** between releases - see [`CLAUDE.md`](CLAUDE.md) for why, and for
+vendored there. The version stays **0.0.3** between releases - see [`CLAUDE.md`](CLAUDE.md) for why, and for
 how a change reaches an installed plugin.
 
 ### License

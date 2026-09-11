@@ -62,9 +62,10 @@
               <div class="tt-task-title">{{ task.title }}</div>
               <div class="tt-task-detail" v-if="expanded[task.id] && task.detail">{{ task.detail }}</div>
               <div class="tt-task-foot">
-                <span class="tt-source" :class="'tt-source-' + task.source"
-                      v-if="task.source !== 'manual'"
-                      :title="sourceTitle(task)">{{ task.source }}</span>
+                <span v-for="source in (task.sources || [task.source])" :key="source"
+                      class="tt-source" :class="'tt-source-' + source"
+                      v-if="source !== 'manual'"
+                      :title="sourceTitle({ source: source })">{{ source }}</span>
                 <span :title="task.updated_at | datetime">{{ task.updated_at | ago }}</span>
                 <span class="tt-task-actions">
                   <i class="fa" :class="expanded[task.id] ? 'fa-chevron-up' : 'fa-align-left'"
@@ -108,7 +109,7 @@
           <tr v-for="task in tasks" :key="task.id" class="tt-row-open" @click="edit(task)">
             <td class="td-ellipsis" :title="task.detail || task.title">{{ task.title }}</td>
             <td>{{ statusLabel(task.status) }}</td>
-            <td class="text-muted-soft" :title="sourceTitle(task)">{{ task.source }}</td>
+            <td class="text-muted-soft" :title="sourceTitle(task)">{{ (task.sources || [task.source]).join(' + ') }}</td>
             <td :title="task.updated_at | datetime">{{ task.updated_at | ago }}</td>
             <td class="td-actions" @click.stop>
               <i class="fa fa-pen" role="button" tabindex="0" title="Edit"
@@ -166,9 +167,10 @@ var STATUS_LABELS = { queued: 'QUEUE', in_progress: 'IN PROGRESS', done: 'DONE' 
    the token stands for, so nobody has to learn the vocabulary from the README. */
 var SOURCE_TITLES = {
   todo: 'Mirrored from Claude’s own todo list while it worked.',
-  mcp: 'Filed by Claude through the tracker’s tools.',
+  codex: 'Mirrored from Codex’s plan while it worked.',
+  mcp: 'Filed through the tracker’s MCP tools.',
   manual: 'Typed into this panel.',
-  prompt: 'A prompt sent to Claude - done when Claude finished answering it.',
+  prompt: 'A prompt sent to Claude or Codex - done when the answer stopped.',
 };
 
 module.exports = {

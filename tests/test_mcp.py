@@ -251,6 +251,44 @@ def test_the_web_app_serves_the_tools_over_http(home, tmp_path, monkeypatch):
         assert result["isError"] is True
         assert "Pass `project`" in result["content"][0]["text"]
 
+        # Codex hooks on the host and its HTTP MCP client share these rows.
+        # This also catches client instructions that accidentally assume that
+        # every caller has Claude's TaskCreate tool.
+        from tasktracker import codex_hook
+
+        assert "For Codex with TaskTracker hooks:" in init.json()["result"]["instructions"]
+        codex_hook.mirror(
+            {
+                "hook_event_name": "PostToolUse",
+                "tool_name": "update_plan",
+                "session_id": "codex-http",
+                "cwd": str(root / "src"),
+                "tool_input": {"plan": [{"step": "Native plan", "status": "pending"}]},
+            }
+        )
+        queued = rpc(
+            client,
+            4,
+            "tools/call",
+            {
+                "name": "tasks_queued",
+                "arguments": {"project": str(root)},
+            },
+        ).json()["result"]["structuredContent"]
+        (card,) = [row for row in queued["queued"] if row["source"] == "codex"]
+        assert queued["cards_mode"] == "claude"
+        assert card["title"] == "Native plan"
+        finished = rpc(
+            client,
+            5,
+            "tools/call",
+            {
+                "name": "task_done",
+                "arguments": {"task_id": card["id"]},
+            },
+        ).json()["result"]["structuredContent"]["task"]
+        assert finished["status"] == "done" and finished["source"] == "codex"
+
 
 def test_the_http_endpoint_refuses_a_foreign_host(home):
     """A page in the same browser cannot rebind a DNS name to the board.
@@ -285,10 +323,70 @@ def test_the_stdio_entry_point_trusts_the_working_directory(monkeypatch):
 def test_claude_mode_tells_claude_to_keep_a_task_list():
     told = mcp_server.instructions("claude")
     assert "TaskCreate" in told and "in_progress" in told
-    assert told.startswith(config.PLAN_INSTRUCTIONS)
+    assert told.startswith("For Claude Code with TaskTracker hooks:")
+    assert config.PLAN_INSTRUCTIONS in told
+    assert "For Codex with TaskTracker hooks:" in told
+    assert config.CODEX_PLAN_INSTRUCTIONS in told
     # In prompts mode the cards are the user's prompts, and Claude is not asked
     # to keep a list for the board's sake.
-    assert mcp_server.instructions("prompts") == mcp_server.BASE_INSTRUCTIONS
+    assert "prompts mode" in mcp_server.instructions("prompts")
+    assert config.PLAN_INSTRUCTIONS not in mcp_server.instructions("prompts")
+    assert config.CODEX_PLAN_INSTRUCTIONS not in mcp_server.instructions("prompts")
+
+
+def test_queue_reports_the_current_card_mode(repo, conn):
+    assert mcp_server.tasks_queued()["cards_mode"] == "claude"
+    store.set_setting(conn, config.CARDS_SETTING, "prompts")
+    assert mcp_server.tasks_queued()["cards_mode"] == "prompts"
+
+
+def test_llm_reconciliation_over_http_is_visible_in_the_panel(home, project, conn):
+    from fastapi.testclient import TestClient
+
+    from tasktracker.server.app import build
+
+    release = store.create_task(conn, project["id"], "Release 0.0.2", source=store.SOURCE_MCP)
+    prompt = store.record_turn(conn, project["id"], "s", "t", "давай 0.0.2")
+    with TestClient(build(), base_url="http://127.0.0.1:8787") as client:
+        view = rpc(
+            client,
+            1,
+            "tools/call",
+            {
+                "name": "tasks_review",
+                "arguments": {"project": project["path"]},
+            },
+        ).json()["result"]["structuredContent"]
+        result = rpc(
+            client,
+            2,
+            "tools/call",
+            {
+                "name": "tasks_reconcile",
+                "arguments": {
+                    "project": project["path"],
+                    "review_token": view["review_token"],
+                    "merges": [
+                        {
+                            "keep_id": release["id"],
+                            "duplicate_ids": [prompt["id"]],
+                            "reason": "Both refer to the same requested 0.0.2 release.",
+                        }
+                    ],
+                },
+            },
+        ).json()["result"]
+        assert not result.get("isError")
+        assert result["structuredContent"]["merged"] == 1
+        board = client.get(f"/api/projects/{project['id']}").json()
+        assert len(board["tasks"]) == 1
+        assert set(board["tasks"][0]["sources"]) == {"mcp", "prompt"}
+        # Finishing a prompt must not finish the queued release.
+        assert board["tasks"][0]["status"] == "queued"
+        history = client.get(f"/api/tasks/{prompt['id']}").json()
+        assert history["task"]["id"] == release["id"]
+        assert history["merge_history"][0]["originals"][1]["title"] == "давай 0.0.2"
+        assert client.get("/api/tasks/999999").status_code == 404
 
 
 def test_the_server_records_the_card_mode_for_the_hooks(home, monkeypatch, conn):

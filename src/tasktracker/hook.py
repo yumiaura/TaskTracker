@@ -18,10 +18,9 @@ many sessions never create one.
 
 Two rules govern everything here:
 
-  * It must never fail loudly. A hook that exits non-zero, or writes to stdout,
-    is a hook that interrupts the work it was supposed to be recording. Every
-    path out of `main` is exit 0, and the only thing ever written is a line on
-    stderr when something unexpected happened.
+  * Failures must never stop editing. Every path out of `main` is exit 0.
+    Session and prompt hooks may add instructions; Stop may request one LLM
+    reconciliation pass. Unexpected failures go only to stderr.
 
   * It must be cheap. It runs on every TodoWrite, so it imports the standard
     library and the store and nothing else - no fastapi, no mcp, no web
@@ -35,7 +34,7 @@ import re
 import sys
 from typing import Any
 
-from . import config, store
+from . import config, reconcile, store
 
 # The tools whose calls are worth mirroring. hooks.json registers the hook with
 # the same three names, so in normal operation nothing else reaches here - the
@@ -256,7 +255,7 @@ def claude_mode_event(payload: dict[str, Any]) -> Any:
     if not session_id or not isinstance(cwd, str) or not isinstance(transcript, str):
         return None
     prompt, turn_id, tools = last_turn(transcript)
-    if not prompt or not turn_id:
+    if not prompt or not turn_id or prompt.startswith(reconcile.INTERNAL_PREFIX):
         return None
     if any(tool in TOOLS for tool in tools) or not any(tool in WORK_TOOLS for tool in tools):
         return None
@@ -276,6 +275,9 @@ def mirror(payload: dict[str, Any]) -> Any:
     both a prompt card and the tasks for the same work.
     """
     event = payload.get("hook_event_name")
+    prompt = payload.get("prompt")
+    if isinstance(prompt, str) and prompt.strip().startswith(reconcile.INTERNAL_PREFIX):
+        return None
     if event == SESSION_START:
         return register(payload)
 
@@ -383,6 +385,10 @@ def main(stdin=None) -> int:
         mirror(payload)
     except Exception as exc:  # noqa: BLE001 - see the docstring
         print(f"tasktracker: the task mirror failed: {exc}", file=sys.stderr)
+    try:
+        reconcile.request_on_stop(payload, "claude")
+    except Exception as exc:  # noqa: BLE001 - reconciliation is also advisory
+        print(f"tasktracker: could not request reconciliation: {exc}", file=sys.stderr)
     return 0
 
 
