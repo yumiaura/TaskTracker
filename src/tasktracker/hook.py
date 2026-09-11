@@ -57,6 +57,12 @@ STOP = "Stop"
 # answering in words are not on the list: a question makes no card.
 WORK_TOOLS = ("Bash", "Edit", "Write", "MultiEdit", "NotebookEdit")
 
+# The tracker's own MCP task tools, under whatever name the client gives the
+# server - `mcp__plugin_tasktracker_tasktracker__task_add` through the plugin,
+# `mcp__tasktracker__task_add` for a server added by hand. A turn that used one
+# tracked its work on the board already.
+MCP_TASK_TOOL = re.compile(r"^mcp__.*tasktracker.*__(task_add|task_start|task_done|task_update)$")
+
 # How TaskCreate words its result when it comes back as text rather than as an
 # object: "Task #3 created successfully: ...".
 TASK_NUMBER = re.compile(r"#(\d+)")
@@ -192,17 +198,45 @@ def prompt_text(content: Any) -> str | None:
     return content.strip()
 
 
-def last_turn(transcript: str) -> tuple[str | None, str | None, list[str]]:
-    """The last prompt in a session's transcript, its id, and the tools used after it.
+def result_task_id(content: Any) -> int | None:
+    """The task id in a tracker MCP tool's result: `{"task": {"id": N}, ...}`.
+
+    The result reaches the transcript as that JSON, either as a string or as a
+    list of text parts holding it.
+    """
+    if isinstance(content, list):
+        content = "".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
+    if not isinstance(content, str):
+        return None
+    try:
+        body = json.loads(content)
+    except ValueError:
+        return None
+    task = body.get("task") if isinstance(body, dict) else None
+    ident = task.get("id") if isinstance(task, dict) else None
+    return ident if isinstance(ident, int) else None
+
+
+def last_turn(transcript: str) -> tuple[str | None, str | None, list[str], list[int]]:
+    """The last prompt in a transcript, its id, the tools used after it, and the
+    ids of the tracker MCP tasks those tools created or changed.
 
     Read from the JSONL file Claude Code keeps and names in every hook payload,
     so nothing has to be remembered between the prompt and the Stop. A slash
     command or other bracketed entry starts a turn with no prompt, so the tools
-    it runs are never pinned on the prompt before it.
+    it runs are never pinned on the prompt before it. Meta entries - a Stop
+    hook's feedback among them - are skipped, so a continuation it asks for
+    stays part of the turn that ended.
+
+    A task id comes from the call's input for task_start, task_done and
+    task_update, and from the call's result for task_add, which is where the
+    new id first appears.
     """
     prompt: str | None = None
     turn_id: str | None = None
     tools: list[str] = []
+    cards: list[int] = []
+    adding: set[str] = set()
     with open(transcript, encoding="utf-8", errors="replace") as lines:
         for line in lines:
             try:
@@ -216,19 +250,42 @@ def last_turn(transcript: str) -> tuple[str | None, str | None, list[str]]:
                 continue
             content = message.get("content")
             if entry.get("type") == "user":
+                if isinstance(content, list):
+                    for part in content:
+                        if (
+                            isinstance(part, dict)
+                            and part.get("type") == "tool_result"
+                            and part.get("tool_use_id") in adding
+                        ):
+                            ident = result_task_id(part.get("content"))
+                            if ident is not None:
+                                cards.append(ident)
                 text = prompt_text(content)
                 if text is None or text.startswith("[Request interrupted"):
                     continue
                 if not text or text.startswith("<"):
-                    prompt, turn_id, tools = None, None, []
+                    prompt, turn_id, tools, cards = None, None, [], []
                 else:
-                    prompt, turn_id, tools = text, str(entry.get("uuid") or ""), []
+                    prompt, turn_id, tools, cards = text, str(entry.get("uuid") or ""), [], []
+                adding = set()
                 continue
             if entry.get("type") == "assistant" and isinstance(content, list):
                 for part in content:
-                    if isinstance(part, dict) and part.get("type") == "tool_use":
-                        tools.append(str(part.get("name")))
-    return prompt, turn_id, tools
+                    if not isinstance(part, dict) or part.get("type") != "tool_use":
+                        continue
+                    name = str(part.get("name"))
+                    tools.append(name)
+                    tracked = MCP_TASK_TOOL.match(name)
+                    if not tracked:
+                        continue
+                    if tracked.group(1) == "task_add":
+                        adding.add(str(part.get("id")))
+                        continue
+                    arguments = part.get("input")
+                    ident = arguments.get("task_id") if isinstance(arguments, dict) else None
+                    if isinstance(ident, int):
+                        cards.append(ident)
+    return prompt, turn_id, tools, cards
 
 
 def claude_mode_event(payload: dict[str, Any]) -> Any:
@@ -242,6 +299,12 @@ def claude_mode_event(payload: dict[str, Any]) -> Any:
     that does work and never touched its task list, the prompt itself becomes
     a card in DONE, so that work is on the board after all. A turn that kept
     tasks is already there; a turn of reading and talking leaves nothing.
+
+    A turn that tracked its work through the tracker's own MCP tools kept tasks
+    too. If that was one task, the prompt is glued to it - one card, the task's
+    title with the prompt as its context, instead of the task plus a card of
+    the prompt's first words. If it was several, the prompt asked for all of
+    them and belongs to none; it makes no card.
     """
     if payload.get("hook_event_name") == PROMPT_SUBMIT:
         prompt = payload.get("prompt")
@@ -254,10 +317,21 @@ def claude_mode_event(payload: dict[str, Any]) -> Any:
     transcript = payload.get("transcript_path")
     if not session_id or not isinstance(cwd, str) or not isinstance(transcript, str):
         return None
-    prompt, turn_id, tools = last_turn(transcript)
+    prompt, turn_id, tools, cards = last_turn(transcript)
     if not prompt or not turn_id or prompt.startswith(reconcile.INTERNAL_PREFIX):
         return None
-    if any(tool in TOOLS for tool in tools) or not any(tool in WORK_TOOLS for tool in tools):
+    if any(tool in TOOLS for tool in tools):
+        return None
+    touched = list(dict.fromkeys(cards))
+    if touched:
+        if len(touched) != 1:
+            return None
+        with store.database() as conn:
+            project = store.ensure_project(conn, cwd)
+            return reconcile.glue_prompt(
+                conn, project["id"], session_id, turn_id, prompt, touched[0]
+            )
+    if not any(tool in WORK_TOOLS for tool in tools):
         return None
     with store.database() as conn:
         project = store.ensure_project(conn, cwd)
