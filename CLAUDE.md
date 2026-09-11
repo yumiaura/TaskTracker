@@ -1,9 +1,9 @@
 # TaskTracker: instructions for Claude Code
 
-## The version is 0.0.3 - only Olya changes it
+## The version is 0.0.4 - only Olya changes it
 
-The plugin, the package and the web app are version 0.0.3, and they stay at
-0.0.3 until Olya says otherwise. Do not raise it for a fix or a feature; a
+The plugin, the package and the web app are version 0.0.4, and they stay at
+0.0.4 until Olya says otherwise. Do not raise it for a fix or a feature; a
 change goes into the current version, under Unreleased in the CHANGELOG. When
 Olya names a new version, it is set in all three places below, Unreleased
 becomes that version's section, and it gets a `v<version>` tag.
@@ -35,4 +35,4 @@ installed copy contains: `.claude-plugin/`, `hooks/`, `commands/`, or
 
 Established 2026-09-10: Olya set the version to 0.0.1 and said to keep it there,
 and raised it to 0.0.2 the same day rather than move the published v0.0.1 tag,
-then to 0.0.3 with Codex support.
+then to 0.0.3 with Codex support, and to 0.0.4 for the fixes after it.

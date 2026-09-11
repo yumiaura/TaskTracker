@@ -6,8 +6,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.0.4] - 2026-09-11
+
 ### Fixed
 
+- Version 0.0.4, tagged `v0.0.4`: the two fixes below, released so that an
+  installed plugin picks them up with `claude plugin update`
+  (`chore/release-0.0.4`).
 - The panel's "how long ago" was wrong past the first unit: its steps were off
   by one, dividing minutes by 24 and hours by 7, so a card finished fifteen
   hours earlier read "1 week ago" and one from thirty minutes before read "1

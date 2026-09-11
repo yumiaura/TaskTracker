@@ -142,7 +142,7 @@ GitHub Actions（`.github/workflows/ci.yml`）会在每个 pull request 和每�
 在 Python 3.11 和 3.12 上运行 ruff 和 `pytest --cov`。
 
 面板没有构建步骤：`src/tasktracker/www` 原样提供，所有第三方库都放在其中。
-在下次发布之前版本保持为 **0.0.3** —— 原因以及改动如何进入已安装的插件，见 [`CLAUDE.md`](../CLAUDE.md)。
+在下次发布之前版本保持为 **0.0.4** —— 原因以及改动如何进入已安装的插件，见 [`CLAUDE.md`](../CLAUDE.md)。
 
 ### 许可证
 
