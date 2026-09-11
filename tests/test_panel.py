@@ -59,3 +59,46 @@ def test_the_panel_is_served_and_is_read_only(home):
     # A write method against the static mount is 404, not 405: there is nothing
     # at that path to have had a wrong method for.
     assert client.post("/css/main.css").status_code == 404
+
+
+def test_the_ago_filter_names_the_right_unit():
+    """The panel's "how long ago", run from app.js itself under node.
+
+    Its unit steps were once off by one - minutes divided by 24, hours by 7 - so
+    a card finished fifteen hours earlier read "1 week ago". This extracts the
+    filter from app.js, runs it against a fixed clock, and checks each unit.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    source = (webui.WWW_DIR / "js" / "app.js").read_text()
+    found = re.search(r"Vue\.filter\('ago', function \(value\) \{.*?\n\}\);", source, re.DOTALL)
+    assert found, "the ago filter is not where this test looks for it"
+
+    now = 1_000_000_000
+    ages = {
+        30: "just now",
+        90: "1 minute ago",
+        30 * 60: "30 minutes ago",
+        15 * 3600: "15 hours ago",
+        3 * 86400: "3 days ago",
+        14 * 86400: "2 weeks ago",
+        60 * 86400: "1 month ago",
+        400 * 86400: "1 year ago",
+    }
+    script = (
+        "var filters = {};\n"
+        "var Vue = { filter: function (name, fn) { filters[name] = fn; } };\n"
+        f"Date.now = function () {{ return {now * 1000}; }};\n"
+        + found.group(0)
+        + f"\nconsole.log(JSON.stringify({json.dumps(list(ages))}.map(function (s) {{"
+        f" return filters.ago({now} - s); }})));\n"
+    )
+    done = subprocess.run([node, "-e", script], capture_output=True, text=True, check=True)
+    assert json.loads(done.stdout) == list(ages.values())

@@ -8,6 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The panel's "how long ago" was wrong past the first unit: its steps were off
+  by one, dividing minutes by 24 and hours by 7, so a card finished fifteen
+  hours earlier read "1 week ago" and one from thirty minutes before read "1
+  hour ago". The steps now go 60, 60, 24, 7, 4.348, 12 - minutes, hours, days,
+  weeks, months, years - and a test runs the filter from app.js under node
+  (`fix/ago-filter`).
 - A Claude turn that tracked its work through the tracker's own MCP tools no
   longer leaves a second, context-free card of the prompt's first words beside
   the task. The Stop safety net counted only TaskCreate, TaskUpdate and

@@ -36,8 +36,13 @@ Vue.filter('ago', function (value) {
   // A clock that has drifted, or a row written a moment ago by another process.
   // "in 3 seconds" is a worse answer than "just now".
   if (seconds < 60) return 'just now';
+  // Each step divides the unit before it into the unit it names: seconds by 60
+  // into minutes, minutes by 60 into hours, hours by 24 into days, and so on.
+  // The divisor belongs to the step that makes the unit, not to the unit it
+  // leaves - off by one, minutes were divided by 24 and fifteen hours read as
+  // "1 week ago".
   var steps = [
-    [60, 'minute'], [24, 'hour'], [7, 'day'], [4.348, 'week'], [12, 'month'],
+    [60, 'minute'], [60, 'hour'], [24, 'day'], [7, 'week'], [4.348, 'month'], [12, 'year'],
   ];
   var count = seconds;
   var unit = 'second';
