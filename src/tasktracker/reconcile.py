@@ -102,6 +102,118 @@ def validate(groups: list[dict[str, Any]], cards: dict[int, dict[str, Any]]) -> 
         used.update(ids)
 
 
+def merge_group(
+    conn: sqlite3.Connection,
+    project_id: int,
+    keep_id: int,
+    duplicate_ids: list[int],
+    reason: str,
+    cards: dict[int, dict[str, Any]],
+    now: float,
+) -> None:
+    """Merge cards into the one kept, inside the caller's transaction.
+
+    The one way two cards become one, whether an LLM review decided it or a
+    turn's prompt is glued to the MCP task it worked on: the kept card collects
+    the others' texts, takes the status of its substantive cards, and the others
+    become hidden aliases with their originals in the merge history.
+    """
+    ids = [keep_id, *duplicate_ids]
+    originals = [cards[ident] for ident in ids]
+    canonical = cards[keep_id]
+    details = [canonical["detail"]] if canonical["detail"] else []
+    for original in originals[1:]:
+        details.append(
+            f"[{original['source'].upper()} #{original['id']}] {original['title']}"
+            + ("\n" + original["detail"] if original["detail"] else "")
+        )
+    # A prompt being answered does not prove the task is done. When
+    # substantive cards disagree, retain unfinished work on the board.
+    statuses = {card["status"] for card in originals if card["source"] != store.SOURCE_PROMPT}
+    status = next(
+        value for value in (store.IN_PROGRESS, store.QUEUED, store.DONE) if value in statuses
+    )
+    stamps = store.stamps(canonical, status, now)
+    conn.execute(
+        "UPDATE tasks SET detail = ?, status = ?, updated_at = ?, position = ?, "
+        "started_at = ?, completed_at = ? WHERE id = ?",
+        (
+            "\n\n".join(details)[: config.DETAIL_MAX],
+            status,
+            now,
+            store.next_position(conn, project_id, status),
+            stamps.get("started_at", canonical["started_at"]),
+            stamps.get("completed_at", canonical["completed_at"]),
+            keep_id,
+        ),
+    )
+    for ident in duplicate_ids:
+        # Flatten earlier merges, so aliases always resolve in one hop.
+        conn.execute(
+            "UPDATE tasks SET merged_into = ? WHERE id = ? OR merged_into = ?",
+            (keep_id, ident, ident),
+        )
+        conn.execute(
+            "UPDATE task_merge_history SET task_id = ? WHERE task_id = ?", (keep_id, ident)
+        )
+    conn.execute(
+        "INSERT INTO task_merge_history (task_id, reason, originals, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        (keep_id, reason.strip(), json.dumps(originals, ensure_ascii=False), now),
+    )
+
+
+# The merge history's reason for a glued prompt.
+GLUE_REASON = (
+    "The prompt that asked for this work, glued to the MCP task Claude tracked it "
+    "with in the same turn."
+)
+
+
+def glue_prompt(
+    conn: sqlite3.Connection,
+    project_id: int,
+    session_id: str,
+    turn_id: str,
+    prompt: str,
+    keep_id: int,
+) -> dict[str, Any] | None:
+    """Glue a turn's prompt to the MCP task that turn worked on.
+
+    Claude tracked the work through the tracker's own MCP tools, so the task is
+    on the board with a real title; the prompt is its context, not a second
+    card. It is recorded under the turn's id and merged into the task at once -
+    the same merge an LLM review would make, without asking for one.
+
+    A turn already recorded - a second Stop for it, after a review continuation
+    - is left alone. So is a task that is gone, or on another project's board.
+    """
+    if store.mirrored_task(conn, project_id, session_id, f"turn:{turn_id}") is not None:
+        return None
+    try:
+        keep = store.task(conn, keep_id)
+    except store.NotFound:
+        return None
+    if keep["project_id"] != project_id:
+        return None
+    card = store.record_turn(conn, project_id, session_id, turn_id, prompt)
+    if card is None:
+        return None
+    now = time.time()
+    with store.transaction(conn):
+        merge_group(
+            conn,
+            project_id,
+            keep["id"],
+            [card["id"]],
+            GLUE_REASON,
+            {keep["id"]: keep, card["id"]: card},
+            now,
+        )
+        store.touch_project(conn, project_id, now)
+    return store.task(conn, keep["id"])
+
+
 def apply(
     conn: sqlite3.Connection, project_id: int, review_token: str, merges: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -115,55 +227,16 @@ def apply(
         cards = {card["id"]: card for card in current["tasks"]}
         validate(merges, cards)
         for group in merges:
-            keep_id = group["keep_id"]
-            ids = [keep_id, *group["duplicate_ids"]]
-            originals = [cards[ident] for ident in ids]
-            canonical = cards[keep_id]
-            details = [canonical["detail"]] if canonical["detail"] else []
-            for original in originals[1:]:
-                details.append(
-                    f"[{original['source'].upper()} #{original['id']}] {original['title']}"
-                    + ("\n" + original["detail"] if original["detail"] else "")
-                )
-            # A prompt being answered does not prove the task is done. When
-            # substantive cards disagree, retain unfinished work on the board.
-            statuses = {
-                card["status"] for card in originals if card["source"] != store.SOURCE_PROMPT
-            }
-            status = next(
-                value
-                for value in (store.IN_PROGRESS, store.QUEUED, store.DONE)
-                if value in statuses
+            merge_group(
+                conn,
+                project_id,
+                group["keep_id"],
+                group["duplicate_ids"],
+                group["reason"],
+                cards,
+                now,
             )
-            stamps = store.stamps(canonical, status, now)
-            conn.execute(
-                "UPDATE tasks SET detail = ?, status = ?, updated_at = ?, position = ?, "
-                "started_at = ?, completed_at = ? WHERE id = ?",
-                (
-                    "\n\n".join(details)[: config.DETAIL_MAX],
-                    status,
-                    now,
-                    store.next_position(conn, project_id, status),
-                    stamps.get("started_at", canonical["started_at"]),
-                    stamps.get("completed_at", canonical["completed_at"]),
-                    keep_id,
-                ),
-            )
-            for ident in group["duplicate_ids"]:
-                # Flatten earlier merges, so aliases always resolve in one hop.
-                conn.execute(
-                    "UPDATE tasks SET merged_into = ? WHERE id = ? OR merged_into = ?",
-                    (keep_id, ident, ident),
-                )
-                conn.execute(
-                    "UPDATE task_merge_history SET task_id = ? WHERE task_id = ?", (keep_id, ident)
-                )
-            conn.execute(
-                "INSERT INTO task_merge_history (task_id, reason, originals, created_at) "
-                "VALUES (?, ?, ?, ?)",
-                (keep_id, group["reason"].strip(), json.dumps(originals, ensure_ascii=False), now),
-            )
-            kept.append(keep_id)
+            kept.append(group["keep_id"])
         if kept:
             store.touch_project(conn, project_id, now)
         after = snapshot(conn, project_id)

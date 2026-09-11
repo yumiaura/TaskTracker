@@ -690,3 +690,182 @@ def test_a_missing_transcript_is_quiet(home, tmp_path, conn, capsys):
     assert run(stopped(root, tmp_path / "nowhere.jsonl")) == 0
     assert capsys.readouterr().out == ""
     assert all(store.tasks(conn, row["id"]) == [] for row in store.projects(conn))
+
+
+# ---------------------------------------------------------------------------
+# Claude mode: a prompt glued to the MCP task its turn worked on
+# ---------------------------------------------------------------------------
+
+PLUGIN_MCP = "mcp__plugin_tasktracker_tasktracker__"
+
+
+def mcp_call(name, call_id, **arguments):
+    return {
+        "type": "assistant",
+        "message": {
+            "content": [{"type": "tool_use", "id": call_id, "name": name, "input": arguments}]
+        },
+    }
+
+
+def mcp_answer(call_id, task_id, as_parts=False):
+    body = json.dumps({"project": "repo", "task": {"id": task_id, "title": "x"}})
+    content = [{"type": "text", "text": body}] if as_parts else body
+    return {
+        "type": "user",
+        "message": {
+            "content": [{"type": "tool_result", "tool_use_id": call_id, "content": content}]
+        },
+    }
+
+
+def mcp_card(conn, root, title, status=None):
+    project = store.ensure_project(conn, str(root))
+    card = store.create_task(conn, project["id"], title, source=store.SOURCE_MCP)
+    if status:
+        card = store.update_task(conn, card["id"], status=status)
+    return card
+
+
+def visible(conn, root):
+    project = store.find_project(conn, str(root))
+    return store.tasks(conn, project["id"])
+
+
+def test_a_prompt_is_glued_to_the_mcp_task_its_turn_created(home, tmp_path, conn):
+    """One card: the task's title, with the prompt as its context."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    release = mcp_card(conn, root, "Release 0.0.2")
+    path = transcript(
+        tmp_path,
+        said("давай 0.0.2", "u1"),
+        mcp_call(PLUGIN_MCP + "task_add", "c1", title="Release 0.0.2"),
+        mcp_answer("c1", release["id"]),
+        used("Bash", "Edit"),
+        mcp_call(PLUGIN_MCP + "task_done", "c2", task_id=release["id"]),
+    )
+    store.update_task(conn, release["id"], status=store.DONE)
+    run(stopped(root, path))
+
+    cards = visible(conn, root)
+    assert [card["title"] for card in cards] == ["Release 0.0.2"]
+    assert cards[0]["sources"] == [store.SOURCE_MCP, store.SOURCE_PROMPT]
+    history = store.merge_history(conn, release["id"])
+    assert [original["title"] for original in history[0]["originals"]] == [
+        "Release 0.0.2",
+        "давай 0.0.2",
+    ]
+    assert "давай 0.0.2" in cards[0]["detail"]
+
+
+def test_a_prompt_is_glued_to_a_task_the_turn_only_changed(home, tmp_path, conn):
+    """task_start/task_done carry the id in their input, as a follow-up turn does."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    work = mcp_card(conn, root, "Codex support", status=store.IN_PROGRESS)
+    path = transcript(
+        tmp_path,
+        said("да и примени у нас", "u1"),
+        used("Bash"),
+        mcp_call("mcp__tasktracker__task_done", "c1", task_id=work["id"]),
+    )
+    run(stopped(root, path))
+    assert [card["title"] for card in visible(conn, root)] == ["Codex support"]
+    assert store.merge_history(conn, work["id"])[0]["originals"][1]["title"] == (
+        "да и примени у нас"
+    )
+
+
+def test_the_task_id_is_read_from_a_result_in_text_parts(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    card = mcp_card(conn, root, "Parts")
+    path = transcript(
+        tmp_path,
+        said("do the parts thing", "u1"),
+        mcp_call(PLUGIN_MCP + "task_add", "c1", title="Parts"),
+        mcp_answer("c1", card["id"], as_parts=True),
+        used("Bash"),
+    )
+    run(stopped(root, path))
+    assert [row["title"] for row in visible(conn, root)] == ["Parts"]
+    assert visible(conn, root)[0]["sources"] == [store.SOURCE_MCP, store.SOURCE_PROMPT]
+
+
+def test_a_glued_prompt_never_finishes_the_task(home, tmp_path, conn):
+    """The prompt is DONE when the answer ends; the task may still be under way."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    work = mcp_card(conn, root, "Still going", status=store.IN_PROGRESS)
+    path = transcript(
+        tmp_path,
+        said("start it", "u1"),
+        mcp_call(PLUGIN_MCP + "task_start", "c1", task_id=work["id"]),
+        used("Bash"),
+    )
+    run(stopped(root, path))
+    assert store.task(conn, work["id"])["status"] == store.IN_PROGRESS
+
+
+def test_a_second_stop_for_the_same_turn_glues_nothing_more(home, tmp_path, conn):
+    """A review continuation ends in another Stop for the same turn."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    card = mcp_card(conn, root, "Once")
+    path = transcript(
+        tmp_path,
+        said("once please", "u1"),
+        mcp_call(PLUGIN_MCP + "task_add", "c1", title="Once"),
+        mcp_answer("c1", card["id"]),
+        used("Bash"),
+        {"type": "user", "isMeta": True, "message": {"content": "Stop hook feedback: review"}},
+        mcp_call(PLUGIN_MCP + "task_update", "c2", task_id=card["id"], detail="more"),
+    )
+    run(stopped(root, path))
+    run(stopped(root, path))
+    assert len(store.merge_history(conn, card["id"])) == 1
+    project = store.find_project(conn, str(root))
+    aliases = conn.execute(
+        "SELECT count(*) FROM tasks WHERE project_id = ? AND merged_into = ?",
+        (project["id"], card["id"]),
+    ).fetchone()[0]
+    assert aliases == 1
+
+
+def test_a_turn_over_several_mcp_tasks_makes_no_prompt_card(home, tmp_path, conn):
+    """A prompt that asked for several tasks belongs to none of them."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    first, second = mcp_card(conn, root, "First"), mcp_card(conn, root, "Second")
+    path = transcript(
+        tmp_path,
+        said("plan the next two things", "u1"),
+        mcp_call(PLUGIN_MCP + "task_add", "c1", title="First"),
+        mcp_answer("c1", first["id"]),
+        mcp_call(PLUGIN_MCP + "task_add", "c2", title="Second"),
+        mcp_answer("c2", second["id"]),
+        used("Bash"),
+    )
+    run(stopped(root, path))
+    cards = visible(conn, root)
+    assert sorted(card["title"] for card in cards) == ["First", "Second"]
+    assert all("sources" not in card for card in cards)
+
+
+def test_an_mcp_task_on_another_board_gets_no_prompt(home, tmp_path, conn):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    elsewhere = tmp_path / "other"
+    (elsewhere / ".git").mkdir(parents=True)
+    foreign = mcp_card(conn, elsewhere, "Filed for the other project")
+    path = transcript(
+        tmp_path,
+        said("file that for the other repo", "u1"),
+        mcp_call(PLUGIN_MCP + "task_add", "c1", title="Filed for the other project"),
+        mcp_answer("c1", foreign["id"]),
+        used("Bash"),
+    )
+    run(stopped(root, path))
+    assert visible(conn, root) == []
+    assert "sources" not in store.task(conn, foreign["id"])

@@ -39,6 +39,12 @@ decision; tests of the merge machinery do not guarantee every model decision.
 
 ## Automatic and existing cards
 
+One case needs no review. A Claude turn that tracked its work with a single
+tracker MCP task (`task_add`, `task_start`, `task_done`, `task_update`) has its
+prompt glued to that task at Stop, through the same merge: the card shows
+`MCP` + `PROMPT` and keeps the prompt under MERGED CARDS. A turn over several
+MCP tasks makes no prompt card at all.
+
 The session instructions tell the agent to reconcile after work. The Stop hook
 also requests one pass when a changed board has cards from multiple sources,
 so it can include a fallback prompt created at Stop itself. It guards against

@@ -6,6 +6,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Fixed
+
+- A Claude turn that tracked its work through the tracker's own MCP tools no
+  longer leaves a second, context-free card of the prompt's first words beside
+  the task. The Stop safety net counted only TaskCreate, TaskUpdate and
+  TodoWrite as keeping tasks, so each such turn made the MCP task plus a
+  PROMPT card for the same work ("Release 0.0.2" and "давай 0.0.2"). Now the
+  prompt is glued to the one MCP task the turn created or changed - the same
+  merge an LLM review makes, recorded under MERGED CARDS - and a turn over
+  several MCP tasks makes no prompt card (`fix/glue-mcp-prompt`).
+
 ## [0.0.3] - 2026-09-11
 
 ### Added
