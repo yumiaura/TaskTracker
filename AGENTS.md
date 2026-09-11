@@ -1,6 +1,6 @@
 # TaskTracker: instructions for Codex
 
-Read `CLAUDE.md` for the shared release policy. Keep the version at **0.0.3**
+Read `CLAUDE.md` for the shared release policy. Keep the version at **0.0.4**
 unless Olya explicitly requests a release; record changes under Unreleased in
 `CHANGELOG.md`.
 

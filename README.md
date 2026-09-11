@@ -149,7 +149,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs ruff and `pytest --cov` on Pyth
 3.12 for every pull request and every push to `main`.
 
 The panel has no build step: `src/tasktracker/www` is served as it is, and every library is
-vendored there. The version stays **0.0.3** between releases - see [`CLAUDE.md`](CLAUDE.md) for why, and for
+vendored there. The version stays **0.0.4** between releases - see [`CLAUDE.md`](CLAUDE.md) for why, and for
 how a change reaches an installed plugin.
 
 ### License
