@@ -6,6 +6,28 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- Semantic reconciliation through the connected Claude/Codex LLM:
+  `tasks_review`, `task_get` and `tasks_reconcile`, plus
+  `/tasktracker:reconcile` for an explicit pass. Stop requests one bounded
+  review of changed cards across sources, including completed prompt/MCP
+  duplicates. Stale decisions and invalid batches are rejected atomically.
+- SQLite schema 2 preserves merged cards as hidden aliases, with full original
+  texts and reasons in merge history. The board shows all source badges and
+  a MERGED CARDS section; counters count the surviving card once. Hook replays
+  and old MCP ids resolve to it, while prompt completion cannot finish ongoing
+  work. Schema migration preserves existing data; the version stays 0.0.2.
+- Codex lifecycle hooks mirror native `update_plan` steps with a `CODEX` badge,
+  register projects at session start, and remind Codex to keep its plan current.
+  Prompts mode tracks `UserPromptSubmit` through `Stop`, with turn ids preventing
+  duplicate cards and a late Stop from closing a newer prompt. Codex sessions
+  are isolated from Claude sessions in the existing shared database.
+- `python3 hooks/install-codex.py` installs the hooks without pip, retains other
+  hooks, backs up changed configuration and can be run again without duplicates.
+  MCP instructions now cover both clients; `tasks_queued` reports the card mode.
+  Codex setup is documented in all three READMEs and `docs/CODEX.md`.
+
 ## [0.0.2] - 2026-09-10
 
 ### Changed
@@ -180,4 +202,3 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `mcp` is bounded `>=1.29,<2`. The unbounded range installed mcp 2.x, which
   renamed FastMCP, and the server failed at import on any fresh install
   (`feat/docker`).
-

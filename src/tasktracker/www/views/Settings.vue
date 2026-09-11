@@ -44,9 +44,9 @@
         <span class="tt-path" :title="database">{{ database || '…' }}</span>
       </div>
       <p class="tt-settings-note mb-0 mt-2">
-        One SQLite file for every project. Claude writes to it through the
-        tracker's MCP tools and through the hook that mirrors its own todo
-        list; this panel reads and writes the same rows.
+        One SQLite file for every project. Claude Code and Codex write to it
+        through the tracker's MCP tools and hooks that mirror their plans;
+        this panel reads and writes the same rows.
       </p>
     </div>
   </div>

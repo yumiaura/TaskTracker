@@ -161,6 +161,17 @@ def add_task(project_id: int, body: TaskCreate, conn: Conn) -> dict[str, Any]:
         raise fail(400, str(exc)) from exc
 
 
+@router.get("/tasks/{task_id}")
+def get_task(task_id: int, conn: Conn) -> dict[str, Any]:
+    try:
+        return {
+            "task": store.task(conn, task_id),
+            "merge_history": store.merge_history(conn, task_id),
+        }
+    except store.NotFound as exc:
+        raise fail(404, str(exc)) from exc
+
+
 @router.patch("/tasks/{task_id}")
 def edit_task(task_id: int, body: TaskPatch, conn: Conn) -> dict[str, Any]:
     try:

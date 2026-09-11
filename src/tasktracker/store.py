@@ -17,6 +17,7 @@ disagree about what a date means.
 from __future__ import annotations
 
 import contextlib
+import json
 import sqlite3
 import time
 from collections.abc import Iterable, Iterator, Sequence
@@ -43,6 +44,7 @@ STATUSES = (QUEUED, IN_PROGRESS, DONE)
 # card in the panel because a board that mixes the two without saying so is a
 # board where a card nobody recognises looks like a bug.
 SOURCE_TODO = "todo"
+SOURCE_CODEX = "codex"
 SOURCE_MCP = "mcp"
 SOURCE_MANUAL = "manual"
 # A prompt the user sent to Claude, when .env chooses prompts mode.
@@ -72,7 +74,7 @@ TASK_DELETED = "deleted"
 # does not reshuffle work somebody was halfway through reading.
 COLUMN_ORDER = "CASE status WHEN 'queued' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END"
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
@@ -187,8 +189,27 @@ def migrate(conn: sqlite3.Connection) -> None:
     # applied that way is applied outside the transaction meant to protect it,
     # and the COMMIT that follows fails on a connection with nothing to commit.
     with transaction(conn):
-        for statement in filter(None, (part.strip() for part in SCHEMA.split(";"))):
-            conn.execute(statement)
+        # Another hook can have migrated while this connection waited for the
+        # write lock. Read the version again inside the transaction.
+        version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        if version < 1:
+            for statement in filter(None, (part.strip() for part in SCHEMA.split(";"))):
+                conn.execute(statement)
+        if version < 2:
+            conn.execute(
+                "ALTER TABLE tasks ADD COLUMN merged_into INTEGER REFERENCES tasks(id) "
+                "ON DELETE CASCADE"
+            )
+            conn.execute("CREATE INDEX tasks_by_merge ON tasks (merged_into)")
+            conn.execute("""
+                CREATE TABLE task_merge_history (
+                    id INTEGER PRIMARY KEY,
+                    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                    reason TEXT NOT NULL,
+                    originals TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                )
+            """)
         conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
@@ -373,7 +394,7 @@ def projects(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                             AND (? IS NULL
                                  OR COALESCE(t.completed_at, t.updated_at) >= ?)), 0) AS done
           FROM projects p
-          LEFT JOIN tasks t ON t.project_id = p.id
+          LEFT JOIN tasks t ON t.project_id = p.id AND t.merged_into IS NULL
          GROUP BY p.id
          ORDER BY p.updated_at DESC
         """,
@@ -401,7 +422,37 @@ def task(conn: sqlite3.Connection, task_id: int) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if row is None:
         raise NotFound(f"no task {task_id}")
-    return dict(row)
+    if row["merged_into"] is not None:
+        return task(conn, row["merged_into"])
+    return with_sources(conn, [dict(row)])[0]
+
+
+def with_sources(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach provenance badges in one query for all cards on a board."""
+    if not rows:
+        return rows
+    by_id = {row["id"]: row for row in rows}
+    aliases = conn.execute(
+        "SELECT merged_into, source FROM tasks WHERE project_id = ? AND merged_into IS NOT NULL",
+        (rows[0]["project_id"],),
+    )
+    for alias in aliases:
+        canonical = by_id.get(alias["merged_into"])
+        if canonical is not None:
+            sources = canonical.setdefault("sources", [canonical["source"]])
+            if alias["source"] not in sources:
+                sources.append(alias["source"])
+    return rows
+
+
+def merge_history(conn: sqlite3.Connection, task_id: int) -> list[dict[str, Any]]:
+    canonical = task(conn, task_id)
+    rows = conn.execute(
+        "SELECT reason, originals, created_at FROM task_merge_history "
+        "WHERE task_id = ? ORDER BY id",
+        (canonical["id"],),
+    )
+    return [{**dict(row), "originals": json.loads(row["originals"])} for row in rows]
 
 
 def tasks(
@@ -422,7 +473,7 @@ def tasks(
     the fallback those cards would compare as older than any cutoff and vanish
     the day the setting was first turned on.
     """
-    where = ["project_id = ?"]
+    where = ["project_id = ?", "merged_into IS NULL"]
     args: list[Any] = [project_id]
     if statuses:
         where.append("status IN ({})".format(",".join("?" * len(statuses))))
@@ -435,7 +486,7 @@ def tasks(
     rows = conn.execute(
         f"SELECT * FROM tasks WHERE {clauses} ORDER BY {COLUMN_ORDER}, position, id", args
     ).fetchall()
-    return [dict(row) for row in rows]
+    return with_sources(conn, [dict(row) for row in rows])
 
 
 def next_position(conn: sqlite3.Connection, project_id: int, status: str) -> float:
@@ -446,7 +497,8 @@ def next_position(conn: sqlite3.Connection, project_id: int, status: str) -> flo
     moves the card somebody was about to click.
     """
     row = conn.execute(
-        "SELECT MAX(position) AS edge FROM tasks WHERE project_id = ? AND status = ?",
+        "SELECT MAX(position) AS edge FROM tasks "
+        "WHERE project_id = ? AND status = ? AND merged_into IS NULL",
         (project_id, status),
     ).fetchone()
     edge = row["edge"]
@@ -520,6 +572,7 @@ def update_task(
     that column.
     """
     current = task(conn, task_id)
+    task_id = current["id"]
     now = time.time()
     fields: dict[str, Any] = {"updated_at": now}
 
@@ -588,12 +641,14 @@ def move_task(conn: sqlite3.Connection, task_id: int, status: str, index: int) -
     if status not in STATUSES:
         raise ValueError(f"unknown status {status!r}")
     current = task(conn, task_id)
+    task_id = current["id"]
     now = time.time()
     with transaction(conn):
         column = [
             row["id"]
             for row in conn.execute(
                 "SELECT id FROM tasks WHERE project_id = ? AND status = ? AND id != ? "
+                "AND merged_into IS NULL "
                 "ORDER BY position, id",
                 (current["project_id"], status, task_id),
             ).fetchall()
@@ -617,7 +672,7 @@ def move_task(conn: sqlite3.Connection, task_id: int, status: str, index: int) -
 def delete_task(conn: sqlite3.Connection, task_id: int) -> None:
     current = task(conn, task_id)
     with transaction(conn):
-        conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        conn.execute("DELETE FROM tasks WHERE id = ?", (current["id"],))
         touch_project(conn, current["project_id"])
 
 
@@ -631,10 +686,12 @@ def mirror_todos(
     project_id: int,
     session_id: str,
     todos: Iterable[dict[str, Any]],
+    *,
+    source: str = SOURCE_TODO,
 ) -> dict[str, int]:
-    """Bring one session's mirrored cards in line with Claude's own todo list.
+    """Bring one session's mirrored cards in line with its whole task list.
 
-    TodoWrite sends the WHOLE list every time and its entries carry no stable
+    TodoWrite and Codex update_plan send the WHOLE list with no stable
     id, so the title is the identity - matched within this project and this
     session, never across either. Two sessions working the same repository keep
     their own cards, and a title reused a week later in another session is a new
@@ -667,7 +724,7 @@ def mirror_todos(
             for row in conn.execute(
                 "SELECT * FROM tasks WHERE project_id = ? AND session_id = ? AND source = ? "
                 "AND external_id IS NULL ORDER BY position, id",
-                (project_id, session_id, SOURCE_TODO),
+                (project_id, session_id, source),
             ).fetchall()
         }
 
@@ -687,7 +744,7 @@ def mirror_todos(
                         title,
                         status,
                         position,
-                        SOURCE_TODO,
+                        source,
                         session_id,
                         now,
                         now,
@@ -699,6 +756,16 @@ def mirror_todos(
                 continue
             if row["status"] == status:
                 continue
+            if row["merged_into"] is not None:
+                # Keep the source identity for future snapshots, but apply a
+                # genuine status change to the one card the user now sees.
+                conn.execute(
+                    "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
+                    (status, now, row["id"]),
+                )
+                row = conn.execute(
+                    "SELECT * FROM tasks WHERE id = ?", (row["merged_into"],)
+                ).fetchone()
             fields: dict[str, Any] = {
                 "status": status,
                 "updated_at": now,
@@ -714,12 +781,16 @@ def mirror_todos(
         gone = [
             row["id"]
             for title, row in existing.items()
-            if title not in live and row["status"] == QUEUED
+            if title not in live and row["status"] == QUEUED and row["merged_into"] is None
         ]
         if gone:
             slots = ",".join("?" * len(gone))
-            conn.execute(f"DELETE FROM tasks WHERE id IN ({slots})", gone)
-            counts["withdrawn"] = len(gone)
+            removed = conn.execute(
+                f"DELETE FROM tasks WHERE id IN ({slots}) AND NOT EXISTS "
+                "(SELECT 1 FROM tasks alias WHERE alias.merged_into = tasks.id)",
+                gone,
+            )
+            counts["withdrawn"] = removed.rowcount
 
         if counts["added"] or counts["updated"] or counts["withdrawn"]:
             touch_project(conn, project_id, now)
@@ -759,6 +830,10 @@ def mirror_task_created(
     """
     existing = mirrored_task(conn, project_id, session_id, external_id)
     if existing is not None:
+        if existing["merged_into"] is not None and (
+            existing["title"] == title and existing["detail"] == detail
+        ):
+            return task(conn, existing["id"])
         return update_task(conn, existing["id"], title=title, detail=detail)
     return create_task(
         conn,
@@ -796,6 +871,9 @@ def mirror_task_updated(
     if existing is None:
         return None
     if status == TASK_DELETED:
+        if existing["merged_into"] is not None or "sources" in task(conn, existing["id"]):
+            # Removing one native representation must not erase other sources.
+            return None
         delete_task(conn, existing["id"])
         return None
     column = TODO_STATUS.get(status) if status else None
@@ -817,17 +895,33 @@ def prompt_title(prompt: str) -> str:
     return ""
 
 
-def close_prompt_cards(conn: sqlite3.Connection, project_id: int, session_id: str) -> int:
+def close_prompt_cards(
+    conn: sqlite3.Connection,
+    project_id: int,
+    session_id: str,
+    *,
+    turn_id: str | None = None,
+    before_id: int | None = None,
+) -> int:
     """Move this session's prompt cards still in progress to DONE.
 
     Called when Claude stops answering, and again when the next prompt arrives:
     an answer the user interrupts fires no Stop, and without the second call its
     card would sit in IN PROGRESS for good.
     """
+    # Codex supplies a turn id. A late Stop from a previous turn must not
+    # finish a newer prompt, even when the session is the same.
+    turn_filter = " AND external_id = ?" if turn_id is not None else ""
+    params = (project_id, session_id, SOURCE_PROMPT, IN_PROGRESS)
+    if turn_id is not None:
+        params += (f"prompt:{turn_id}",)
+    if before_id is not None:
+        turn_filter += " AND id < ?"
+        params += (before_id,)
     rows = conn.execute(
         "SELECT id FROM tasks WHERE project_id = ? AND session_id = ? AND source = ? "
-        "AND status = ?",
-        (project_id, session_id, SOURCE_PROMPT, IN_PROGRESS),
+        "AND status = ? AND merged_into IS NULL" + turn_filter,
+        params,
     ).fetchall()
     for row in rows:
         update_task(conn, row["id"], status=DONE)
@@ -835,9 +929,14 @@ def close_prompt_cards(conn: sqlite3.Connection, project_id: int, session_id: st
 
 
 def open_prompt_card(
-    conn: sqlite3.Connection, project_id: int, session_id: str, prompt: str
+    conn: sqlite3.Connection,
+    project_id: int,
+    session_id: str,
+    prompt: str,
+    *,
+    turn_id: str | None = None,
 ) -> dict[str, Any] | None:
-    """A card for a prompt just sent to Claude, straight into IN PROGRESS.
+    """A card for a submitted prompt, straight into IN PROGRESS.
 
     The title is the prompt's first line; the whole prompt is the detail when
     there is more of it than the title shows. An empty prompt makes no card.
@@ -845,17 +944,33 @@ def open_prompt_card(
     title = prompt_title(prompt)
     if not title:
         return None
-    close_prompt_cards(conn, project_id, session_id)
+    external = f"prompt:{turn_id}" if turn_id is not None else None
+    if external is not None:
+        existing = mirrored_task(conn, project_id, session_id, external)
+        if existing is not None:
+            return task(conn, existing["id"])
     text = str(prompt).strip()
-    return create_task(
-        conn,
-        project_id,
-        title=title,
-        detail=text if text != title else "",
-        status=IN_PROGRESS,
-        source=SOURCE_PROMPT,
-        session_id=session_id,
-    )
+    # Claim the turn before closing older prompts. Concurrent copies of the
+    # same hook must not close the first copy's card before failing its UNIQUE
+    # constraint. Only the invocation that created a card closes older ones.
+    try:
+        created = create_task(
+            conn,
+            project_id,
+            title=title,
+            detail=text if text != title else "",
+            status=IN_PROGRESS,
+            source=SOURCE_PROMPT,
+            session_id=session_id,
+            external_id=external,
+        )
+    except sqlite3.IntegrityError:
+        existing = mirrored_task(conn, project_id, session_id, external) if external else None
+        if existing is None:
+            raise
+        return existing
+    close_prompt_cards(conn, project_id, session_id, before_id=created["id"])
+    return created
 
 
 def record_turn(
@@ -872,7 +987,7 @@ def record_turn(
     external = f"turn:{turn_id}"
     existing = mirrored_task(conn, project_id, session_id, external)
     if existing is not None:
-        return existing
+        return task(conn, existing["id"])
     text = str(prompt).strip()
     return create_task(
         conn,

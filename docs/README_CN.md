@@ -1,6 +1,6 @@
 [EN](../README.md) | [RU](README_RU.md) | CN
 
-## TaskTracker：Claude 自己填写的任务看板 🗂️
+## TaskTracker：Claude Code 和 Codex 自己填写的任务看板 🗂️
 
 <p class="badges">
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-D97757?logo=anthropic&logoColor=white" alt="Claude Code 插件">
@@ -14,6 +14,9 @@ Claude Code 工作时会维护一份任务清单 —— 而这份清单会随会
 TaskTracker 把它按项目镜像到看板上，并为 Claude 提供 MCP 工具，下次可以把队列读回来。<br>
 看板是一个网页面板：先是项目列表，再是三列 —— **QUEUE**、**IN PROGRESS**、**DONE**。<br>
 在某个项目里启动 Claude 的那一刻，这个项目就会出现；面板会自动刷新。
+
+**也支持 Codex：**通过生命周期钩子镜像其原生计划，并通过同一个 MCP 服务器读取队列。
+参见 [Codex 配置](#-codex)。
 
 <img src="board.png" width="800" alt="单个项目的看板：三列，卡片可在列之间拖动">
 
@@ -40,7 +43,8 @@ docker compose up -d
 
 面板地址是 http://127.0.0.1:8787。卡片的来源在 `.env` 中设置 —— 见[下文](#-卡片从哪里来)。
 
-**2. 安装插件** —— 在同一目录下执行一次即可，所有项目都会生效：
+**2. 安装 Claude Code 插件** —— 在同一目录下执行一次即可，所有项目都会生效。
+Codex 用户请使用[单独的配置步骤](#-codex)：
 
 ```bash
 claude plugin marketplace add ./
@@ -68,6 +72,27 @@ claude plugin install tasktracker@tasktracker
 
 然后重启 Claude Code。
 
+## 🤖 Codex
+
+启动看板后，在项目目录运行以下命令（主机需要 Python 3.11+；
+支持 Linux、macOS 和 WSL）：
+
+```bash
+codex mcp add tasktracker --url http://127.0.0.1:8787/mcp
+python3 hooks/install-codex.py
+```
+
+重启 Codex，打开 `/hooks`，检查并信任 TaskTracker 的钩子；Codex 要求先完成此检查，
+才会运行它们。在 `/mcp` 中确认连接。安装程序保留其他钩子，并备份修改前的 `hooks.json`。
+
+`TASKTRACKER_CARDS=claude` 保留原有默认值，供两个客户端共同使用：Codex 的
+`update_plan` 步骤显示为 `CODEX` 卡片，状态随计划更新。设置为 `prompts` 时，
+请求在 Codex 回答期间处于 IN PROGRESS，回答停止后进入 DONE。
+Claude 和 Codex 共用看板，但各自的会话不会修改对方的卡片。
+
+更新后，重新构建容器、运行钩子安装程序并重启 Codex。
+[完整配置、验证和限制](CODEX.md)。
+
 ## 🃏 卡片从哪里来
 
 只有一个设置：`docker-compose.yml` 旁边 `.env` 中的 `TASKTRACKER_CARDS`
@@ -87,6 +112,20 @@ TASKTRACKER_CARDS=prompts
   斜杠命令不会生成卡片，Claude 自己的任务也不会显示。
 
 <img src="prompts.png" width="800" alt="prompts 模式：三条请求作为卡片，一张在 IN PROGRESS，两张在 DONE">
+
+## 🔗 合并重复卡片
+
+Claude/Codex 通过 `tasks_review` 按语义比较卡片，再用 `tasks_reconcile` 应用决定。
+例如，要求发布 0.0.2 的提示和记录该版本发布的 MCP 任务可以合成一张卡片。
+不同的子任务、版本和不确定的匹配保持独立。
+
+工作结束后，如果不同来源的卡片发生变化，Stop 钩子会请求一次检查，包括 DONE 卡片。
+合并后的卡片显示所有来源标签；在对话框的 **MERGED CARDS** 中可查看原始内容和合并原因。
+重复钩子仍然指向同一张卡片。提示的回答结束，不代表对应的任务已经完成。
+
+处理已有重复卡片时，在 Claude Code 中运行 `/tasktracker:reconcile`，或让 Codex
+检查并合并当前项目的 TaskTracker 重复卡片。请先更新容器和已安装的钩子。
+[LLM 检查机制](RECONCILIATION.md)。
 
 ## 🧪 开发
 
