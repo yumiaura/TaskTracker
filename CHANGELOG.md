@@ -6,6 +6,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Fixed
+
+- The board comes back after a reboot. The container had no restart policy, so
+  when the machine restarted on 2 October it stayed down for nine days and
+  every Claude session met ECONNREFUSED on the MCP endpoint. docker-compose.yml
+  now sets `restart: unless-stopped` - a container stopped on purpose stays
+  stopped (`chore/restart-policy`).
+
 ## [0.0.4] - 2026-09-11
 
 ### Fixed

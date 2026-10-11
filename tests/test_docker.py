@@ -35,6 +35,11 @@ def test_the_plugin_points_at_the_port_and_path_the_container_serves():
     assert "--port 8787" in ENTRYPOINT
 
 
+def test_the_board_comes_back_after_a_reboot():
+    """Nothing else starts it: no systemd unit, no login script, no cron."""
+    assert "restart: unless-stopped" in COMPOSE
+
+
 def test_the_home_is_mounted_read_only_and_only_the_board_is_writable():
     assert "- ${HOME}:${HOME}:ro" in COMPOSE
     assert "- ${HOME}/.claude/tasktracker:${HOME}/.claude/tasktracker" in COMPOSE
